@@ -1,0 +1,20 @@
+{
+  "name": "test1",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.744.0",
+    "@playwright/test": "^1.42.1",
+    "aws-sdk": "^2.1692.0",
+    "dotenv": "^16.3.1",
+    "mongodb": "^6.3.0",
+    "playwright": "^1.42.1"
+  }
+}
