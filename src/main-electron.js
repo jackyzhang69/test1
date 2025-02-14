@@ -189,7 +189,6 @@ ipcMain.handle('runFormFiller', async (event, formData) => {
     const playwright = require('playwright');
     const browser = await playwright.chromium.launch({
       headless: false,
-      args: ['--start-maximized']
     });
     const context = await browser.newContext({
       viewport: null
@@ -203,7 +202,7 @@ ipcMain.handle('runFormFiller', async (event, formData) => {
       false,
       logger
     );
-    
+
     filler.actions = formData.actions;
     const result = await filler.fill(page);
     

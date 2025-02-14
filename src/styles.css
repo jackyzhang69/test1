@@ -342,22 +342,36 @@ input:focus {
 }
 
 .message-list {
-    max-height: 200px;
-    overflow-y: auto;
-    margin-bottom: 10px;
+    height: 50px;
+    margin: 10px 0;
+    position: relative;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .message-item {
-    padding: 8px;
-    margin: 4px 0;
-    border-left: 3px solid var(--primary-color);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 15px;
+    text-align: center;
+    transition: opacity 0.3s ease;
     background-color: #f8f9fa;
+    border-left: 3px solid var(--primary-color);
 }
 
 .message-item.error {
     border-left-color: var(--error-color);
+    background-color: #fff5f5;
 }
 
 .message-item.success {
     border-left-color: #28a745;
+    background-color: #f4fff4;
+}
+
+.message-list::-webkit-scrollbar {
+    display: none;
 } 

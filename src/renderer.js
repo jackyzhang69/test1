@@ -31,21 +31,23 @@ function updateProgress(progress) {
   }
 }
 
-function addMessage(message, type = 'info') {
+function addMessage(message, type = '') {
   const messageList = DOM_ELEMENTS.messageList();
   if (!messageList) return;
 
-  const messageItem = document.createElement('div');
-  messageItem.className = `message-item ${type}`;
-  messageItem.textContent = message;
+  // 清除之前的消息
+  messageList.innerHTML = '';
   
-  messageList.appendChild(messageItem);
-  messageList.scrollTop = messageList.scrollHeight;
+  const messageElement = document.createElement('div');
+  messageElement.className = `message-item ${type}`;
+  
+  // 只显示操作名称
+  messageElement.textContent = message;
+  
+  messageList.appendChild(messageElement);
 }
 
 function updateCallbackInfo(info) {
-  if (!info) return;
-
   // 更新进度条
   if (info.progress !== undefined) {
     updateProgress(info.progress);
@@ -53,25 +55,16 @@ function updateCallbackInfo(info) {
 
   // 处理消息
   if (info.message) {
-    const { action, name, value, error } = info.message;
+    const { action, name } = info.message;
     
-    if (error) {
-      addMessage(`Error in ${action}: ${error}`, 'error');
-    } else if (action === 'complete') {
-      addMessage('Form filling completed successfully!', 'success');
+    if (action === 'complete') {
+      addMessage('Form filling completed!', 'success');
+    } else if (info.message.error) {
+      addMessage(`Error: ${info.message.error}`, 'error');
     } else {
-      let messageText = `${action}: ${name}`;
-      if (value !== null && value !== undefined) {
-        messageText += ` = ${value}`;
-      }
-      addMessage(messageText);
+      // 只显示操作名称
+      addMessage(name || action);
     }
-  }
-
-  // 更新详细信息显示
-  const callbackElement = DOM_ELEMENTS.callbackInfo();
-  if (callbackElement) {
-    callbackElement.textContent = JSON.stringify(info, null, 2);
   }
 }
 
@@ -81,10 +74,6 @@ function resetFormFillingDisplay() {
     messageList.innerHTML = '';
   }
   updateProgress(0);
-  const callbackElement = DOM_ELEMENTS.callbackInfo();
-  if (callbackElement) {
-    callbackElement.textContent = 'Starting form filling...';
-  }
 }
 
 // 事件处理函数
