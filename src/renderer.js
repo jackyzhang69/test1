@@ -194,6 +194,11 @@ function setupDeleteButton() {
       return;
     }
 
+    // 添加确认对话框
+    if (!confirm('Are you sure you want to delete this form?')) {
+      return;
+    }
+
     try {
       const result = await window.api.deleteFormData(selectedForm._id);
       if (result) {
