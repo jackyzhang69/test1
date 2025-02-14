@@ -5,8 +5,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
+    "postinstall": "npx playwright install chromium",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "prebuild": "npx playwright install chromium"
   },
   "keywords": [],
   "author": "",
@@ -30,7 +32,15 @@
     "files": [
       "src/**/*",
       "package.json",
-      ".env"
+      ".env",
+      "node_modules/@playwright/test/",
+      {
+        "from": ".cache/ms-playwright",
+        "to": "ms-playwright",
+        "filter": [
+          "chromium-*/**/*"
+        ]
+      }
     ],
     "directories": {
       "output": "dist"
@@ -41,6 +51,10 @@
       ],
       "category": "public.app-category.utilities"
     },
-    "asar": true
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@playwright/test/**/*",
+      "ms-playwright/**/*"
+    ]
   }
 }
