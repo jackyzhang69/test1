@@ -113,12 +113,21 @@ ipcMain.handle('login', async (event, { email, password }) => {
 });
 
 ipcMain.handle('fetchFormData', async (event, userId) => {
+  console.log('Raw userId:', userId);
   try {
     if (!db) throw new Error("Database not connected");
+    
+    // 修复：直接使用 buffer 属性
+    const userIdStr = Buffer.from(userId.buffer).toString('hex');
+    console.log('Converted userId:', userIdStr);
+    
     const formFillingData = await db.collection('formfillingdata')
-      .find({ user_id: String(userId) }).toArray();
+      .find({ user_id: userIdStr }).toArray();
+    
+    console.log('Found data:', formFillingData);
     return { success: true, data: formFillingData };
   } catch (error) {
+    console.error('Error in fetchFormData:', error);
     return { success: false, error: error.message };
   }
 });
