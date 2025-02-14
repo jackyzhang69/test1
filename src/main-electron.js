@@ -10,6 +10,16 @@ const { chromium } = require('playwright');
 const { FormFillingData } = require('./form_filling_data');
 const { WebFiller } = require('./webfiller');
 const { MongoClient } = require('mongodb');
+const { loadEnvConfig } = require('./config');
+
+// Load environment variables before anything else
+loadEnvConfig();
+
+// Add this after loadEnvConfig()
+console.log('App path:', app.getAppPath());
+console.log('Resource path:', process.resourcesPath);
+console.log('Current directory:', __dirname);
+console.log('Environment variables:', process.env);
 
 // 将 mainWindow 声明为全局变量
 let mainWindow = null;

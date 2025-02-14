@@ -1,5 +1,5 @@
 {
-  "name": "test1",
+  "name": "formbro",
   "version": "1.0.0",
   "main": "src/main-electron.js",
   "scripts": {
@@ -27,8 +27,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.test1.app",
-    "productName": "Test1",
+    "appId": "com.watchpup.formbro",
+    "productName": "FormBro",
     "files": [
       "src/**/*",
       "package.json",
@@ -40,6 +40,12 @@
         "filter": [
           "chromium-*/**/*"
         ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
       }
     ],
     "directories": {
@@ -54,7 +60,11 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "executableName": "Test1"
+      "executableName": "FormBro",
+      "notarize": {
+        "teamId": "K7GGZ8W679"
+      },
+      "timestamp": "http://timestamp.apple.com/ts01"
     },
     "asar": true,
     "asarUnpack": [

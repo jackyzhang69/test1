@@ -3,43 +3,58 @@
 require('dotenv').config();
 const { MongoClient } = require('mongodb');
 const path = require('path');
+const dotenv = require('dotenv');
+const { app } = require('electron');
 
 // Get project's home directory
-const BASEDIR = __dirname; // Node.js equivalent of Path(__file__).parent
+const BASEDIR = __dirname;
 const DATADIR = path.join(BASEDIR, 'data');
 
-// Mongodb
-const account = process.env.imm_account;
-const password = process.env.imm_password;
-const database = process.env.database;
-
-const url = `mongodb+srv://${account}:${password}@noah.yi5fo.mongodb.net/?retryWrites=true&w=majority`;
-
-const client = new MongoClient(url, {
-  serverSelectionTimeoutMS: 5000,  // 服务器选择超时时间
-  connectTimeoutMS: 10000,         // 连接超时时间
-  maxPoolSize: 50,                 // 连接池最大连接数
-  minPoolSize: 0                   // 连接池最小连接数
-});
+// Don't create the client here anymore
+let client = null;
 
 async function connectMongo() {
+  const username = process.env.imm_account;
+  const password = process.env.imm_password;
+  const database = process.env.database;
+  
+  if (!username || !password) {
+    throw new Error('MongoDB credentials not found in environment variables');
+  }
+
   try {
-    // 连接到服务器
-    await client.connect();
+    const uri = `mongodb+srv://${username}:${password}@noah.yi5fo.mongodb.net/?retryWrites=true&w=majority`;
     
-    // 快速 ping 确认连接
+    client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 50,
+      minPoolSize: 0
+    });
+    
+    await client.connect();
     await client.db('admin').command({ ping: 1 });
-    console.log('MongoDB connection established successfully.');
 
     if (!database) {
       throw new Error('No database name provided. Please check your .env file.');
     }
     
-    // 返回数据库实例
     return client.db(database);
   } catch (error) {
     console.error('MongoDB connection error:', error);
     throw error;
+  }
+}
+
+function loadEnvConfig() {
+  if (process.env.NODE_ENV === 'development') {
+    dotenv.config();
+  } else {
+    const envPath = path.join(process.resourcesPath, '.env');
+    const result = dotenv.config({ path: envPath });
+    if (result.error) {
+      throw new Error('Could not load .env file');
+    }
   }
 }
 
@@ -61,7 +76,8 @@ if (require.main === module) {
 // Export needed references:
 module.exports = {
   connectMongo,
-  client, // optionally export the client if needed elsewhere
+  client,
   BASEDIR,
   DATADIR,
+  loadEnvConfig,
 };
