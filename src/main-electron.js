@@ -17,8 +17,9 @@ let db;
 
 // 配置 Playwright 的路径
 if (app.isPackaged) {
-  // 在打包环境中，设置 Playwright 的路径
-  process.env.PLAYWRIGHT_BROWSERS_PATH = path.join(process.resourcesPath, 'playwright-browsers');
+  // 更新：在打包时，ms-playwright 被 asarUnpack 到 app.asar.unpacked 内
+  const playwrightPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ms-playwright');
+  process.env.PLAYWRIGHT_BROWSERS_PATH = playwrightPath;
   console.log('Setting Playwright browsers path:', process.env.PLAYWRIGHT_BROWSERS_PATH);
 }
 
@@ -33,6 +34,10 @@ function logError(error) {
 
 async function createWindow() {
   console.log('Creating window...');
+  const preloadPath = app.isPackaged 
+    ? path.join(app.getAppPath(), 'src', 'preload.js')
+    : path.join(__dirname, 'preload.js');
+
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -40,14 +45,16 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: preloadPath
     }
   });
   console.log('BrowserWindow instance created.');
 
   try {
     console.log('Attempting to load index.html...');
-    const htmlPath = path.join(__dirname, 'index.html');
+    const htmlPath = app.isPackaged
+      ? path.join(app.getAppPath(), 'src', 'index.html')
+      : path.join(__dirname, 'index.html');
     console.log('HTML path:', htmlPath);
     await mainWindow.loadFile(htmlPath);
     console.log('index.html loaded successfully.');
