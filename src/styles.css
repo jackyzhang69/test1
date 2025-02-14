@@ -274,4 +274,13 @@ input:focus {
 .hidden {
     display: none !important;
     visibility: hidden !important;
+}
+
+.delete-btn {
+    background-color: #dc3545;
+    color: white;
+}
+
+.delete-btn:hover {
+    background-color: #c82333;
 } 

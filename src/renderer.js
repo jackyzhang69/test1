@@ -62,23 +62,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  loadFormBtn.addEventListener('click', () => {
-    const index = applicationSelect.value;
-    const selectedData = formDataList[index];
-    if (selectedData) {
-      formDetails.textContent = JSON.stringify(selectedData, null, 2);
-    }
-  });
-
-  // 修改事件监听器，使用正确的按钮 ID
-  const fillFormBtn = document.getElementById('fill-form-btn'); // 而不是 'fillForm'
+  // Update fill form button handler
+  const fillFormBtn = document.getElementById('fillFormBtn');
   fillFormBtn.addEventListener('click', async () => {
     const selectedIndex = applicationSelect.value;
     const formData = formDataList[selectedIndex];
     
     if (!formData) {
       console.error('No form data available');
-      alert('No form data available');
+      alert('Please select a form first');
       return;
     }
 
@@ -94,6 +86,32 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error('Error running form filler:', error);
       alert('Error: ' + error.message);
+    }
+  });
+
+  // Update delete button handler
+  const deleteButton = document.getElementById('deleteButton');
+  deleteButton.addEventListener('click', async () => {
+    const selectedIndex = applicationSelect.value;
+    const selectedData = formDataList[selectedIndex];
+    if (!selectedData) {
+      alert('Please select an item to delete');
+      return;
+    }
+
+    if (confirm('Are you sure you want to delete this item?')) {
+      try {
+        await window.api.deleteFormData(selectedData._id);
+        // Refresh form data list
+        const dataResponse = await window.api.fetchFormData(currentUser._id);
+        if (dataResponse.success) {
+          formDataList = dataResponse.data;
+          await populateApplicationSelect(formDataList);
+        }
+      } catch (error) {
+        console.error('Error deleting form data:', error);
+        alert('Failed to delete the item');
+      }
     }
   });
 

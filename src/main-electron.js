@@ -9,7 +9,7 @@ const { connectMongo } = require('./config');
 const { chromium } = require('playwright');
 const { FormFillingData } = require('./form_filling_data');
 const { WebFiller } = require('./webfiller');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const { loadEnvConfig } = require('./config');
 
 // Load environment variables before anything else
@@ -221,6 +221,25 @@ ipcMain.handle('runFormFiller', async (event, formData) => {
     logError(error);
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('delete-form-data', async (event, id) => {
+    try {
+        // Convert the buffer directly to ObjectId instead of hex string
+        const objectId = new ObjectId(id.buffer);
+        const result = await db.collection('formfillingdata').deleteOne({
+            _id: objectId
+        });
+        
+        if (result.deletedCount === 1) {
+            return true;
+        } else {
+            throw new Error('Document not found');
+        }
+    } catch (error) {
+        console.error('Error deleting form data:', error);
+        throw error;
+    }
 });
 
 module.exports = { createWindow, initMongoDB }; 
