@@ -15,12 +15,28 @@ const { MongoClient } = require('mongodb');
 let mainWindow = null;
 let db;
 
+// 配置 Playwright 的路径
+if (app.isPackaged) {
+  // 在打包环境中，设置 Playwright 的路径
+  process.env.PLAYWRIGHT_BROWSERS_PATH = path.join(process.resourcesPath, 'playwright-browsers');
+  console.log('Setting Playwright browsers path:', process.env.PLAYWRIGHT_BROWSERS_PATH);
+}
+
+// 添加调试日志
+function logError(error) {
+  console.error('Error details:', {
+    message: error.message,
+    stack: error.stack,
+    name: error.name
+  });
+}
+
 async function createWindow() {
   console.log('Creating window...');
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
-    show: false, // 开始时隐藏
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -31,15 +47,21 @@ async function createWindow() {
 
   try {
     console.log('Attempting to load index.html...');
-    // 加载本地 HTML 文件
-    await mainWindow.loadFile('index.html');
+    const htmlPath = path.join(__dirname, 'index.html');
+    console.log('HTML path:', htmlPath);
+    await mainWindow.loadFile(htmlPath);
     console.log('index.html loaded successfully.');
     mainWindow.show();
     console.log('Window is now shown.');
     mainWindow.focus();
     console.log('Window is now shown and focused.');
+
+    // 在开发环境下打开开发者工具
+    if (!app.isPackaged) {
+      mainWindow.webContents.openDevTools();
+    }
   } catch (error) {
-    console.error('Failed to load window:', error);
+    logError(error);
     throw error;
   }
 }
@@ -137,23 +159,19 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
 ipcMain.handle('runFormFiller', async (event, formData) => {
   console.log('runFormFiller called with data:', formData);
   try {
-    // 添加 fetch_func 回调
     const fetch_func = (key) => {
       const value = formData[key];
-      // 通过 event.sender 发送回调信息
       event.sender.send('callback-info', `Fetching data for key: ${key} = ${value}`);
       return value;
     };
 
     console.log('Initializing WebFiller...');
-    // 传入 fetch_func 回调
     const filler = new WebFiller(
       formData,
       fetch_func,
       null,
       false,
       (message) => {
-        // 发送日志信息
         event.sender.send('callback-info', message);
       }
     );
@@ -163,23 +181,30 @@ ipcMain.handle('runFormFiller', async (event, formData) => {
     
     // 启动浏览器
     console.log('Launching browser...');
-    const browser = await chromium.launch({ 
+    let browserConfig = {
       headless: false,
-      slowMo: 50
-    });
+      slowMo: 50,
+      channel: 'chrome'  // Use system Chrome
+    };
+
+    console.log('Browser config:', browserConfig);
+    const browser = await chromium.launch(browserConfig);
+    console.log('Browser launched successfully');
+    
     const page = await browser.newPage();
+    console.log('New page created');
     
     // 执行填充
     console.log('Starting form filling...');
     await filler.fill(page);
     console.log('Form filled successfully');
     
-    // 关闭浏览器
     await browser.close();
+    console.log('Browser closed');
     
     return { success: true, message: 'Form filled successfully' };
   } catch (error) {
-    console.error('Error in form filling:', error);
+    logError(error);
     return { success: false, error: error.message };
   }
 });

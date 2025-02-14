@@ -1,10 +1,12 @@
 {
   "name": "test1",
   "version": "1.0.0",
-  "main": "main.js",
+  "main": "src/main-electron.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron src/main-electron.js"
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +21,26 @@
     "playwright": "^1.42.1"
   },
   "devDependencies": {
-    "electron": "^34.2.0"
+    "electron": "^34.2.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.test1.app",
+    "productName": "Test1",
+    "files": [
+      "src/**/*",
+      "package.json",
+      ".env"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "asar": true
   }
 }
