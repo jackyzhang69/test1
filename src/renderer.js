@@ -50,4 +50,31 @@ document.addEventListener('DOMContentLoaded', () => {
       formDetails.textContent = JSON.stringify(selectedData, null, 2);
     }
   });
+
+  // 修改事件监听器，使用正确的按钮 ID
+  const fillFormBtn = document.getElementById('fill-form-btn'); // 而不是 'fillForm'
+  fillFormBtn.addEventListener('click', async () => {
+    const selectedIndex = applicationSelect.value;
+    const formData = formDataList[selectedIndex];
+    
+    if (!formData) {
+      console.error('No form data available');
+      alert('No form data available');
+      return;
+    }
+
+    try {
+      console.log('Running form filler with data:', formData);
+      const result = await window.electron.runFormFiller(formData);
+      
+      if (result.success) {
+        alert('Form filled successfully');
+      } else {
+        alert('Form filling failed: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error running form filler:', error);
+      alert('Error: ' + error.message);
+    }
+  });
 }); 

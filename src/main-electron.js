@@ -6,7 +6,9 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { login } = require('./auth');
 const { connectMongo } = require('./config');
-const FormFillingData = require('./form_filling_data');
+const { chromium } = require('playwright');
+const { FormFillingData } = require('./form_filling_data');
+const { WebFiller } = require('./webfiller');
 const { MongoClient } = require('mongodb');
 
 // 将 mainWindow 声明为全局变量
@@ -36,6 +38,7 @@ async function createWindow() {
     console.log('Window is now shown.');
     mainWindow.focus();
     console.log('Window is now shown and focused.');
+    mainWindow.webContents.openDevTools();
   } catch (error) {
     console.error('Failed to load window:', error);
     throw error;
@@ -128,6 +131,38 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
     return { success: true, data: formFillingData };
   } catch (error) {
     console.error('Error in fetchFormData:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('runFormFiller', async (event, formData) => {
+  console.log('runFormFiller called with data:', formData);
+  try {
+    // 直接使用 formData，不需要再创建 FormFillingData 实例
+    console.log('Initializing WebFiller...');
+    const filler = new WebFiller(formData);
+    filler.actions = formData.actions;
+    console.log('WebFiller initialized with actions:', filler.actions);
+    
+    // 启动浏览器
+    console.log('Launching browser...');
+    const browser = await chromium.launch({ 
+      headless: false,
+      slowMo: 50  // 添加延迟以确保稳定性
+    });
+    const page = await browser.newPage();
+    
+    // 执行填充
+    console.log('Starting form filling...');
+    await filler.fill(page);
+    console.log('Form filled successfully');
+    
+    // 关闭浏览器
+    await browser.close();
+    
+    return { success: true, message: 'Form filled successfully' };
+  } catch (error) {
+    console.error('Error in form filling:', error);
     return { success: false, error: error.message };
   }
 });
