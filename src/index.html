@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Form Filler</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
   <!-- Login Interface -->
@@ -35,8 +36,14 @@
           <option value="">Select an application...</option>
         </select>
         <div class="button-container">
-          <button id="fillFormBtn">Fill Form</button>
-          <button id="deleteButton" class="delete-btn">Delete</button>
+          <button id="fillFormBtn" class="action-button primary-button">
+            <i class="fas fa-play"></i>
+            Fill Form
+          </button>
+          <button id="deleteButton" class="action-button danger-button">
+            <i class="fas fa-trash"></i>
+            Delete
+          </button>
         </div>
       </div>
       
