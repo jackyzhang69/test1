@@ -16,31 +16,34 @@ const database = process.env.database;
 const url = `mongodb+srv://${account}:${password}@noah.yi5fo.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(url, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,  // 服务器选择超时时间
+  connectTimeoutMS: 10000,         // 连接超时时间
+  maxPoolSize: 50,                 // 连接池最大连接数
+  minPoolSize: 0                   // 连接池最小连接数
 });
 
 async function connectMongo() {
   try {
-    // Connect to the server
+    // 连接到服务器
     await client.connect();
-    // Perform a quick ping to confirm connection
+    
+    // 快速 ping 确认连接
     await client.db('admin').command({ ping: 1 });
     console.log('MongoDB connection established successfully.');
-  } catch (e) {
-    console.error(e);
-    throw new Error('Failed to connect to MongoDB');
+
+    if (!database) {
+      throw new Error('No database name provided. Please check your .env file.');
+    }
+    
+    // 返回数据库实例
+    return client.db(database);
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
   }
-  
-  if (!database) {
-    throw new Error('No database name provided. Please check your .env file.');
-  }
-  
-  // Return the database instance
-  return client.db(database);
 }
 
-// If you want to run this file directly (similar to your Python “if __name__ == '__main__':”)
+// If you want to run this file directly (similar to your Python "if __name__ == '__main__':")
 if (require.main === module) {
   (async () => {
     try {

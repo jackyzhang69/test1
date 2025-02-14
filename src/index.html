@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Desktop App</title>
+</head>
+<body>
+  <h1>Login</h1>
+  <div id="login-container">
+    <input type="text" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button id="login-btn">Login</button>
+    <div id="login-error" style="color:red;"></div>
+  </div>
+  <div id="app-container" style="display:none;">
+    <h2>Select Application</h2>
+    <select id="application-select"></select>
+    <button id="load-form-btn">Load Form</button>
+    <div id="form-details"></div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html> 
