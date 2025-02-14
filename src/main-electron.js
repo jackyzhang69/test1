@@ -73,10 +73,7 @@ async function createWindow() {
     mainWindow.focus();
     console.log('Window is now shown and focused.');
 
-    // 在开发环境下打开开发者工具
-    if (!app.isPackaged) {
-      mainWindow.webContents.openDevTools();
-    }
+    
   } catch (error) {
     logError(error);
     throw error;

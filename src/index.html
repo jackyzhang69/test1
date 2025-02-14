@@ -2,55 +2,48 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Desktop App</title>
-  <style>
-    .container {
-      padding: 20px;
-    }
-    .hidden {
-      display: none;
-    }
-    .form-group {
-      margin-bottom: 15px;
-    }
-    select {
-      width: 300px;
-      padding: 5px;
-    }
-    button {
-      margin-right: 10px;
-    }
-  </style>
+  <title>Form Filler</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- 登录界面 -->
-  <div id="login-container" class="container">
-    <h1>Login</h1>
-    <div class="form-group">
-      <input type="text" id="email" placeholder="Email">
+  <!-- Login Interface -->
+  <div id="login-container" class="login-container">
+    <div class="login-box">
+      <h1>Welcome Back</h1>
+      <p class="subtitle">Please login to continue</p>
+      
+      <form id="loginForm" class="login-form">
+        <div class="input-group">
+          <input type="email" id="email" placeholder="Email" required>
+        </div>
+        <div class="input-group">
+          <input type="password" id="password" placeholder="Password" required>
+        </div>
+        <button type="submit" class="login-button">Login</button>
+      </form>
+      
+      <div id="errorMessage" class="error-message"></div>
     </div>
-    <div class="form-group">
-      <input type="password" id="password" placeholder="Password">
-    </div>
-    <button id="login-btn">Login</button>
-    <div id="login-error" style="color:red;"></div>
   </div>
 
-  <!-- 表单填充界面 -->
-  <div id="app-container" class="container hidden">
-    <h2>Form Filling</h2>
-    <div class="form-group">
-      <select id="application-select">
-        <option value="">Select an application...</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <button id="load-form-btn">Load Form</button>
-      <button id="fill-form-btn">Fill Form</button>
-    </div>
-    <div id="form-details"></div>
-    <div class="callback-container" style="margin-top: 20px; border: 1px solid #ccc; padding: 10px; height: 20px; overflow: hidden; white-space: nowrap;">
-      <pre id="callbackInfo" style="margin: 0;">Waiting for form filling...</pre>
+  <!-- Form Filling Interface -->
+  <div id="app-container" class="app-container hidden">
+    <div class="form-filling-box">
+      <h2>Form Filling</h2>
+      <div class="form-controls">
+        <select id="application-select" class="application-select">
+          <option value="">Select an application...</option>
+        </select>
+        <div class="button-group">
+          <button id="load-form-btn" class="action-button">Load Form</button>
+          <button id="fill-form-btn" class="action-button">Fill Form</button>
+        </div>
+      </div>
+      
+      <div id="form-details" class="form-details"></div>
+      <div class="callback-container">
+        <pre id="callbackInfo" class="callback-info">Waiting for form filling...</pre>
+      </div>
     </div>
   </div>
 

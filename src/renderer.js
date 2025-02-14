@@ -3,11 +3,9 @@
 */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const loginBtn = document.getElementById('login-btn');
-  const emailInput = document.getElementById('email');
-  const passwordInput = document.getElementById('password');
-  const loginError = document.getElementById('login-error');
-  
+  const loginForm = document.getElementById('loginForm');
+  const errorMessage = document.getElementById('errorMessage');
+
   const loginContainer = document.getElementById('login-container');
   const appContainer = document.getElementById('app-container');
   const applicationSelect = document.getElementById('application-select');
@@ -17,23 +15,50 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentUser = null;
   let formDataList = [];
 
-  loginBtn.addEventListener('click', async () => {
-    const email = emailInput.value;
-    const password = passwordInput.value;
-    const response = await window.electronAPI.login({ email, password });
-    if (response.success) {
-      currentUser = response.user;
-      const dataResponse = await window.electronAPI.fetchFormData(currentUser._id);
-      if (dataResponse.success) {
-        formDataList = dataResponse.data;
-        await populateApplicationSelect(formDataList);
-        loginContainer.style.display = 'none';
-        appContainer.style.display = 'block';
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    console.log('Login form submitted');
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    // Clear previous error
+    errorMessage.textContent = '';
+    
+    try {
+      const result = await window.api.login({ email, password });
+      console.log('Login result:', result);
+      
+      if (result.success) {
+        console.log('Login successful, fetching form data...');
+        currentUser = result.user;
+        const dataResponse = await window.api.fetchFormData(currentUser._id);
+        console.log('Form data response:', dataResponse);
+        
+        if (dataResponse.success) {
+          console.log('Form data fetched successfully');
+          formDataList = dataResponse.data;
+          await populateApplicationSelect(formDataList);
+          console.log('Application select populated');
+          
+          loginContainer.classList.add('hidden');
+          appContainer.classList.remove('hidden');
+          console.log('Containers visibility updated');
+          
+          // Verify visibility
+          console.log('Login container hidden:', loginContainer.classList.contains('hidden'));
+          console.log('App container hidden:', appContainer.classList.contains('hidden'));
+        } else {
+          console.error('Failed to fetch form data:', dataResponse.error);
+          errorMessage.textContent = dataResponse.error || 'Login successful, but form data fetch failed.';
+        }
       } else {
-        loginError.textContent = dataResponse.error;
+        console.error('Login failed:', result.error);
+        errorMessage.textContent = result.error || 'Login failed. Please try again.';
       }
-    } else {
-      loginError.textContent = response.error;
+    } catch (error) {
+      console.error('Login error:', error);
+      errorMessage.textContent = 'An error occurred. Please try again.';
     }
   });
 
@@ -59,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       console.log('Running form filler with data:', formData);
-      const result = await window.electron.runFormFiller(formData);
+      const result = await window.api.runFormFiller(formData);
       
       if (result.success) {
         alert('Form filled successfully');
