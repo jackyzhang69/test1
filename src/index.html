@@ -3,22 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <title>Desktop App</title>
+  <style>
+    .container {
+      padding: 20px;
+    }
+    .hidden {
+      display: none;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    select {
+      width: 300px;
+      padding: 5px;
+    }
+    button {
+      margin-right: 10px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Login</h1>
-  <div id="login-container">
-    <input type="text" id="email" placeholder="Email">
-    <input type="password" id="password" placeholder="Password">
+  <!-- 登录界面 -->
+  <div id="login-container" class="container">
+    <h1>Login</h1>
+    <div class="form-group">
+      <input type="text" id="email" placeholder="Email">
+    </div>
+    <div class="form-group">
+      <input type="password" id="password" placeholder="Password">
+    </div>
     <button id="login-btn">Login</button>
     <div id="login-error" style="color:red;"></div>
   </div>
-  <div id="app-container" style="display:none;">
-    <h2>Select Application</h2>
-    <select id="application-select"></select>
-    <button id="load-form-btn">Load Form</button>
-    <button id="fill-form-btn">Fill Form</button>
+
+  <!-- 表单填充界面 -->
+  <div id="app-container" class="container hidden">
+    <h2>Form Filling</h2>
+    <div class="form-group">
+      <select id="application-select">
+        <option value="">Select an application...</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <button id="load-form-btn">Load Form</button>
+      <button id="fill-form-btn">Fill Form</button>
+    </div>
     <div id="form-details"></div>
+    <div class="callback-container" style="margin-top: 20px; border: 1px solid #ccc; padding: 10px; height: 20px; overflow: hidden; white-space: nowrap;">
+      <pre id="callbackInfo" style="margin: 0;">Waiting for form filling...</pre>
+    </div>
   </div>
+
   <script src="renderer.js"></script>
 </body>
 </html> 

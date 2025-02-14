@@ -26,13 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const dataResponse = await window.electronAPI.fetchFormData(currentUser._id);
       if (dataResponse.success) {
         formDataList = dataResponse.data;
-        applicationSelect.innerHTML = '';
-        formDataList.forEach((item, index) => {
-          const option = document.createElement('option');
-          option.value = index;
-          option.textContent = item.application_name || `Application ${index + 1}`;
-          applicationSelect.appendChild(option);
-        });
+        await populateApplicationSelect(formDataList);
         loginContainer.style.display = 'none';
         appContainer.style.display = 'block';
       } else {
@@ -77,4 +71,49 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Error: ' + error.message);
     }
   });
-}); 
+
+  // 添加一个函数来格式化callback信息
+  function formatCallbackInfo(info) {
+    // 如果info是对象,转换为字符串
+    if (typeof info === 'object') {
+      return JSON.stringify(info, null, 2);
+    }
+    return info;
+  }
+
+  // 添加一个函数来更新callback显示
+  function updateCallbackInfo(info) {
+    const callbackElement = document.getElementById('callbackInfo');
+    if (!callbackElement) return;
+
+    // 只显示有价值的信息
+    let displayText = '';
+    if (typeof info === 'string' && info.includes('Filling')) {
+      displayText = info;  // 显示填充相关的信息
+    } else if (typeof info === 'object' && info.action) {
+      displayText = `${info.action}: ${info.value || ''}`; // 显示动作和值
+    }
+
+    if (displayText) {
+      callbackElement.textContent = displayText;
+    }
+  }
+
+  // 在初始化时设置callback监听
+  window.electron.onCallbackInfo((info) => {
+    updateCallbackInfo(info);
+  });
+});
+
+async function populateApplicationSelect(formData) {
+  const select = document.getElementById('application-select');
+  select.innerHTML = '<option value="">Select an application...</option>';
+  
+  formData.forEach((form, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    // 使用应用名称而不是序号
+    option.textContent = `${form.application_name} (${form.application_id})`;
+    select.appendChild(option);
+  });
+} 

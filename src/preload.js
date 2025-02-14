@@ -10,4 +10,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 contextBridge.exposeInMainWorld('electron', {
   runFormFiller: (formData) => ipcRenderer.invoke('runFormFiller', formData),
+  onCallbackInfo: (callback) => ipcRenderer.on('callback-info', (_, info) => callback(info))
 }); 

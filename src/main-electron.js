@@ -32,13 +32,12 @@ async function createWindow() {
   try {
     console.log('Attempting to load index.html...');
     // 加载本地 HTML 文件
-    await mainWindow.loadFile(path.join(__dirname, 'index.html'));
+    await mainWindow.loadFile('index.html');
     console.log('index.html loaded successfully.');
     mainWindow.show();
     console.log('Window is now shown.');
     mainWindow.focus();
     console.log('Window is now shown and focused.');
-    mainWindow.webContents.openDevTools();
   } catch (error) {
     console.error('Failed to load window:', error);
     throw error;
@@ -138,9 +137,27 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
 ipcMain.handle('runFormFiller', async (event, formData) => {
   console.log('runFormFiller called with data:', formData);
   try {
-    // 直接使用 formData，不需要再创建 FormFillingData 实例
+    // 添加 fetch_func 回调
+    const fetch_func = (key) => {
+      const value = formData[key];
+      // 通过 event.sender 发送回调信息
+      event.sender.send('callback-info', `Fetching data for key: ${key} = ${value}`);
+      return value;
+    };
+
     console.log('Initializing WebFiller...');
-    const filler = new WebFiller(formData);
+    // 传入 fetch_func 回调
+    const filler = new WebFiller(
+      formData,
+      fetch_func,
+      null,
+      false,
+      (message) => {
+        // 发送日志信息
+        event.sender.send('callback-info', message);
+      }
+    );
+    
     filler.actions = formData.actions;
     console.log('WebFiller initialized with actions:', filler.actions);
     
@@ -148,7 +165,7 @@ ipcMain.handle('runFormFiller', async (event, formData) => {
     console.log('Launching browser...');
     const browser = await chromium.launch({ 
       headless: false,
-      slowMo: 50  // 添加延迟以确保稳定性
+      slowMo: 50
     });
     const page = await browser.newPage();
     
