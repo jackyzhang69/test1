@@ -492,22 +492,7 @@ class PwEngine {
 // WebFiller class
 // -------------------------------------------------------------------
 class WebFiller {
-  /**
-   * @param {FillerGraph} fillergraph    - your graph instance
-   * @param {Function} fetch_func        - callback that fetches data by key
-   * @param {string} [pause_at]          - node name at which to insert a pause
-   * @param {boolean} [screenshot]       - whether to take screenshots
-   * @param {Function} [logger]          - logging function
-   * @param {Function} [exhandler]       - optional handler for "match_select" fallback
-   */
-  constructor(
-    fillergraph,
-    fetch_func,
-    pause_at = null,
-    screenshot = false,
-    logger = console.log,
-    exhandler = null
-  ) {
+  constructor(fillergraph, fetch_func, pause_at = null, screenshot = false, logger = console.log) {
     this.fillergraph = fillergraph;
     this.fetch_func = fetch_func;
     this.invalid_fields = [];
@@ -515,229 +500,86 @@ class WebFiller {
     this.pause_at = pause_at;
     this.screenshot = screenshot;
     this.logger = logger;
-    this.exhandler = exhandler;
     this.cursor = 0;
     this.context = {};
   }
 
-  /**
-   * Preflight steps that build the `actions` array.
-   * This replicates the Python code as closely as possible.
-   */
-  preflight() {
-    let node = this.fillergraph.nodes[0];
-    if (this.pause_at) {
-      console.log('pause at: ', this.pause_at);
-    }
-
-    const handle_group = (groupNode, items) => {
-      const loop_begin = groupNode.transitions[0].target;
-      const loop_end = groupNode.option; // in Python: node.option is used for loop_end
-      console.log(`loop begin: ${loop_begin}, loop end: ${loop_end}`);
-      if (!items || items.length === 0) {
-        // no data => jump to loop_end
-        return this.fillergraph.set_current(loop_end);
-      }
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        // set fillergraph current => loop_begin
-        let groupNodeInner = this.fillergraph.set_current(loop_begin);
-
-        while (groupNodeInner.id !== loop_end) {
-          let nodeData = item[groupNodeInner.data];
-          if (nodeData === undefined) {
-            // if no data but node is optional => skip
-            if (groupNodeInner.is_optional) {
-              groupNodeInner = this.fillergraph.get_next();
-              continue;
-            }
-            nodeData = groupNodeInner.data;
-          }
-          if (groupNodeInner.action === 'group_actions') {
-            // nested group
-            groupNodeInner = handle_group(groupNodeInner, nodeData);
-            continue;
-          }
-
-          // Possibly format the selector
-          let sel = groupNodeInner.selector;
-          if (sel && sel.includes('{}')) {
-            if (groupNodeInner.option === 'text') {
-              sel = sel.replace('{}', String(nodeData));
-            } else if (groupNodeInner.option === 'iname') {
-              // e.g. "#isConvictedInCanada_yes"
-              if (typeof nodeData === 'boolean') {
-                sel = sel.replace('{}', nodeData ? 'yes' : 'no');
-              } else {
-                sel = sel.replace('{}', String(nodeData).toLowerCase());
-              }
-            } else if (groupNodeInner.option === '1-based') {
-              sel = sel.replace('{}', String(i + 1));
-            } else {
-              sel = sel.replace('{}', String(i));
-            }
-          }
-
-          if (groupNodeInner.option === 'skip_last' && i === items.length - 1) {
-            // skip the node in last loop
-            groupNodeInner = this.fillergraph.get_next(nodeData);
-            console.log(`skip node ${groupNodeInner.name} in last loop`);
-            break;
-          }
-
-          this.actions.push([
-            groupNodeInner.name,
-            groupNodeInner.action,
-            sel,
-            groupNodeInner.option,
-            nodeData,
-          ]);
-
-          if (groupNodeInner.action === 'branch') {
-            const v = item[groupNodeInner.data];
-            groupNodeInner = this.fillergraph.get_next(String(v));
-            continue;
-          }
-
-          groupNodeInner = this.fillergraph.get_next(nodeData);
-        }
-      }
-      return this.fillergraph.nodes[loop_end];
-    };
-
-    while (node) {
-      // "branch" logic
-      if (node.action === 'branch') {
-        const value = this.fetch_func(node.data);
-        if (value == null) {
-          // if node is optional and has node.option => jump
-          if (node.is_optional && node.option) {
-            node = this.fillergraph.set_current(node.option);
-            continue;
-          } else {
-            this.invalid_fields.push([node.name, node.data]);
-            break;
-          }
-        } else {
-          node = this.fillergraph.get_next(String(value));
-        }
-        continue;
-      }
-
-      let value;
-      if (typeof node.data === 'string' && node.action !== 'get') {
-        try {
-          value = this.fetch_func(node.data);
-        } catch (err) {
-          console.log(`** Parse value exception ${err}`);
-          this.invalid_fields.push([node.name, node.data]);
-        }
-      } else {
-        value = node.data;
-      }
-
-      if (node.action === 'group_actions') {
-        const items = this.fetch_func(node.data);
-        node = handle_group(node, items);
-        continue;
-      }
-
-      if (node.is_optional) {
-        // skip if no data
-        if (value == null && !['check', 'click', 'get', 'pause', 'lmia_finalize', 'goto', 'wait', 'batch_click'].includes(node.action)) {
-          node = this.fillergraph.get_next();
-          continue;
-        }
-      }
-
-      // If data is empty or None, python code often appends invalid unless action is in certain list
-      if (
-        (value === '' || value == null) &&
-        !(
-          (node.action === 'goto' && node.selector.includes('{}')) ||
-          [
-            'check',
-            'click',
-            'get',
-            'pause',
-            'lmia_finalize',
-            'goto',
-            'wait',
-            'batch_click',
-          ].includes(node.action)
-        )
-      ) {
-        this.invalid_fields.push([node.name, node.data]);
-      }
-
-      // If the data is a Date object, turn it into 'YYYY-MM-DD' string
-      if (value instanceof Date) {
-        const y = value.getFullYear();
-        const m = String(value.getMonth() + 1).padStart(2, '0');
-        const d = String(value.getDate()).padStart(2, '0');
-        value = `${y}-${m}-${d}`;
-      }
-
-      // if node is not skipped, add to actions
-      if (!node.skip) {
-        this.actions.push([
-          node.name,
-          node.action,
-          node.selector,
-          node.option,
-          value,
-        ]);
-      }
-
-      // if node.name == pause_at => insert a "pause" action and break
-      if (node.name === this.pause_at) {
-        this.actions.push([node.name, 'pause', '', '', '']);
-        break;
-      }
-
-      node = this.fillergraph.get_next(String(value));
-    }
-
-    if (this.invalid_fields.length > 0) {
-      this.actions = [];
-      return false;
-    }
-    return true;
-  }
-
-  /**
-   * Fill the web page by iterating over the `actions` array, calling PwEngine.act().
-   */
   async fill(page) {
-    const pwfiller = new PwEngine(page, this.context, this.exhandler);
-
+    const pwfiller = new PwEngine(page, this.context);
+    
     let index = 0;
     const steps = this.actions.length;
-
+    
+    console.log('Debug: Total steps:', steps);
+    console.log('Debug: All actions:', JSON.stringify(this.actions, null, 2));
+    
     while (index < steps) {
-      const [name, action, selector, option, data] = this.actions[index];
-      // Log progress
-      this.logger(`${Math.floor((index * 100) / steps) + 1}`, `${name}`);
-
-      await pwfiller.act(action, selector, option, data);
-
-      // check if `get` action set `goto` in context => branch to a different index
-      const nodeName = pwfiller.context.goto;
-      if (nodeName) {
-        // find the node's index with matching name
-        for (let i = 0; i < this.actions.length; i++) {
-          if (this.actions[i][0].toLowerCase() === nodeName.toLowerCase()) {
-            index = i;
-            console.log(`Found matching node, go back to ${i}, ${nodeName}`);
-            delete pwfiller.context.goto;
-            break;
-          }
+      const item = this.actions[index];
+      console.log('Debug: Current action item:', JSON.stringify(item, null, 2));
+      
+      const [name, action, selector, option, data] = item;
+      
+      const logMessage = {
+        progress: Math.round((index * 100) / steps),
+        message: {
+          action: action,
+          name: name,
+          selector: selector,
+          option: option,
+          value: data
         }
-      } else {
-        index += 1;
+      };
+      
+      console.log('Debug: Sending log message:', JSON.stringify(logMessage, null, 2));
+      this.logger(logMessage);
+
+      try {
+        console.log(`Debug: Executing action: ${action} with selector: ${selector}`);
+        await pwfiller.act(action, selector, option, data);
+        
+        const nodeName = pwfiller.context.goto;
+        if (nodeName) {
+          console.log('Debug: Found goto:', nodeName);
+          for (let i = 0; i < this.actions.length; i++) {
+            if (this.actions[i][0].toLowerCase() === nodeName.toLowerCase()) {
+              index = i;
+              console.log(`Debug: Jumping to node at index ${i}: ${nodeName}`);
+              delete pwfiller.context.goto;
+              break;
+            }
+          }
+        } else {
+          index++;
+        }
+      } catch (error) {
+        console.error('Debug: Action execution error:', error);
+        const errorMessage = {
+          message: {
+            error: error.message,
+            action: action,
+            name: name,
+            selector: selector,
+            value: data
+          },
+          progress: Math.round((index * 100) / steps)
+        };
+        
+        console.log('Debug: Sending error message:', JSON.stringify(errorMessage, null, 2));
+        this.logger(errorMessage);
+        throw error;
       }
     }
+
+    const completeMessage = {
+      progress: 100,
+      message: {
+        action: 'complete',
+        success: true
+      }
+    };
+    console.log('Debug: Sending complete message:', JSON.stringify(completeMessage, null, 2));
+    this.logger(completeMessage);
+
     return pwfiller.context.summary_url;
   }
 }

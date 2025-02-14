@@ -174,52 +174,49 @@ ipcMain.handle('runFormFiller', async (event, formData) => {
   console.log('runFormFiller called with data:', formData);
   try {
     const fetch_func = (key) => {
-      const value = formData[key];
-      event.sender.send('callback-info', `Fetching data for key: ${key} = ${value}`);
-      return value;
+      return formData[key];
     };
 
-    console.log('Initializing WebFiller...');
+    // 创建一个格式化的 logger
+    const logger = (info) => {
+      event.sender.send('callback-info', {
+        progress: info.progress,
+        message: info.message
+      });
+    };
+
+    // 启动 Playwright
+    const playwright = require('playwright');
+    const browser = await playwright.chromium.launch({
+      headless: false,
+      args: ['--start-maximized']
+    });
+    const context = await browser.newContext({
+      viewport: null
+    });
+    const page = await context.newPage();
+
     const filler = new WebFiller(
       formData,
       fetch_func,
       null,
       false,
-      (message) => {
-        event.sender.send('callback-info', message);
-      }
+      logger
     );
     
     filler.actions = formData.actions;
-    console.log('WebFiller initialized with actions:', filler.actions);
+    const result = await filler.fill(page);
     
-    // 启动浏览器
-    console.log('Launching browser...');
-    let browserConfig = {
-      headless: false,
-      slowMo: 50,
-      channel: 'chrome'  // Use system Chrome
-    };
-
-    console.log('Browser config:', browserConfig);
-    const browser = await chromium.launch(browserConfig);
-    console.log('Browser launched successfully');
-    
-    const page = await browser.newPage();
-    console.log('New page created');
-    
-    // 执行填充
-    console.log('Starting form filling...');
-    await filler.fill(page);
-    console.log('Form filled successfully');
-    
+    // 关闭浏览器
     await browser.close();
-    console.log('Browser closed');
     
-    return { success: true, message: 'Form filled successfully' };
+    return { success: true, result };
   } catch (error) {
-    logError(error);
-    return { success: false, error: error.message };
+    console.error('Form filling error:', error);
+    return { 
+      success: false, 
+      error: error.message 
+    };
   }
 });
 

@@ -2,150 +2,158 @@
    This file handles UI interactions: login, fetching form data, and displaying selected form details.
 */
 
-document.addEventListener('DOMContentLoaded', () => {
-  const loginForm = document.getElementById('loginForm');
-  const errorMessage = document.getElementById('errorMessage');
+// 常量定义
+const DOM_ELEMENTS = {
+  loginForm: () => document.getElementById('loginForm'),
+  errorMessage: () => document.getElementById('errorMessage'),
+  loginContainer: () => document.getElementById('login-container'),
+  appContainer: () => document.getElementById('app-container'),
+  applicationSelect: () => document.getElementById('application-select'),
+  fillFormBtn: () => document.getElementById('fillFormBtn'),
+  deleteButton: () => document.getElementById('deleteButton'),
+  formDetails: () => document.getElementById('form-details'),
+  progressBar: () => document.getElementById('progressBar'),
+  messageList: () => document.getElementById('messageList'),
+  callbackInfo: () => document.getElementById('callbackInfo')
+};
 
-  const loginContainer = document.getElementById('login-container');
-  const appContainer = document.getElementById('app-container');
-  const applicationSelect = document.getElementById('application-select');
-  const loadFormBtn = document.getElementById('load-form-btn');
-  const formDetails = document.getElementById('form-details');
+// 状态管理
+let currentUser = null;
+let formDataList = [];
 
-  let currentUser = null;
-  let formDataList = [];
+// UI 更新函数
+function updateProgress(progress) {
+  const progressBar = DOM_ELEMENTS.progressBar();
+  if (progressBar) {
+    const percentage = Math.min(Math.max(progress, 0), 100);
+    progressBar.style.width = `${percentage}%`;
+    progressBar.textContent = `${Math.round(percentage)}%`;
+  }
+}
 
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+function addMessage(message, type = 'info') {
+  const messageList = DOM_ELEMENTS.messageList();
+  if (!messageList) return;
+
+  const messageItem = document.createElement('div');
+  messageItem.className = `message-item ${type}`;
+  messageItem.textContent = message;
+  
+  messageList.appendChild(messageItem);
+  messageList.scrollTop = messageList.scrollHeight;
+}
+
+function updateCallbackInfo(info) {
+  if (!info) return;
+
+  // 更新进度条
+  if (info.progress !== undefined) {
+    updateProgress(info.progress);
+  }
+
+  // 处理消息
+  if (info.message) {
+    const { action, name, value, error } = info.message;
     
-    console.log('Login form submitted');
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    
-    // Clear previous error
-    errorMessage.textContent = '';
-    
-    try {
-      const result = await window.api.login({ email, password });
-      console.log('Login result:', result);
-      
-      if (result.success) {
-        console.log('Login successful, fetching form data...');
-        currentUser = result.user;
-        const dataResponse = await window.api.fetchFormData(currentUser._id);
-        console.log('Form data response:', dataResponse);
-        
-        if (dataResponse.success) {
-          console.log('Form data fetched successfully');
-          formDataList = dataResponse.data;
-          await populateApplicationSelect(formDataList);
-          console.log('Application select populated');
-          
-          loginContainer.classList.add('hidden');
-          appContainer.classList.remove('hidden');
-          console.log('Containers visibility updated');
-          
-          // Verify visibility
-          console.log('Login container hidden:', loginContainer.classList.contains('hidden'));
-          console.log('App container hidden:', appContainer.classList.contains('hidden'));
-        } else {
-          console.error('Failed to fetch form data:', dataResponse.error);
-          errorMessage.textContent = dataResponse.error || 'Login successful, but form data fetch failed.';
-        }
-      } else {
-        console.error('Login failed:', result.error);
-        errorMessage.textContent = result.error || 'Login failed. Please try again.';
+    if (error) {
+      addMessage(`Error in ${action}: ${error}`, 'error');
+    } else if (action === 'complete') {
+      addMessage('Form filling completed successfully!', 'success');
+    } else {
+      let messageText = `${action}: ${name}`;
+      if (value !== null && value !== undefined) {
+        messageText += ` = ${value}`;
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      errorMessage.textContent = 'An error occurred. Please try again.';
+      addMessage(messageText);
     }
-  });
+  }
 
-  // Update fill form button handler
-  const fillFormBtn = document.getElementById('fillFormBtn');
-  fillFormBtn.addEventListener('click', async () => {
-    const selectedIndex = applicationSelect.value;
+  // 更新详细信息显示
+  const callbackElement = DOM_ELEMENTS.callbackInfo();
+  if (callbackElement) {
+    callbackElement.textContent = JSON.stringify(info, null, 2);
+  }
+}
+
+function resetFormFillingDisplay() {
+  const messageList = DOM_ELEMENTS.messageList();
+  if (messageList) {
+    messageList.innerHTML = '';
+  }
+  updateProgress(0);
+  const callbackElement = DOM_ELEMENTS.callbackInfo();
+  if (callbackElement) {
+    callbackElement.textContent = 'Starting form filling...';
+  }
+}
+
+// 事件处理函数
+async function handleLogin(e) {
+  e.preventDefault();
+  
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const errorMessage = DOM_ELEMENTS.errorMessage();
+  
+  errorMessage.textContent = '';
+  
+  try {
+    const result = await window.api.login({ email, password });
+    
+    if (result.success) {
+      currentUser = result.user;
+      const dataResponse = await window.api.fetchFormData(currentUser._id);
+      
+      if (dataResponse.success) {
+        formDataList = dataResponse.data;
+        await populateApplicationSelect(formDataList);
+        
+        DOM_ELEMENTS.loginContainer().classList.add('hidden');
+        DOM_ELEMENTS.appContainer().classList.remove('hidden');
+      } else {
+        errorMessage.textContent = dataResponse.error || 'Login successful, but form data fetch failed.';
+      }
+    } else {
+      errorMessage.textContent = result.error || 'Login failed. Please try again.';
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    errorMessage.textContent = 'An error occurred. Please try again.';
+  }
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+  // 设置事件监听器
+  DOM_ELEMENTS.loginForm()?.addEventListener('submit', handleLogin);
+  
+  DOM_ELEMENTS.fillFormBtn()?.addEventListener('click', async () => {
+    const selectedIndex = DOM_ELEMENTS.applicationSelect()?.value;
     const formData = formDataList[selectedIndex];
     
     if (!formData) {
-      console.error('No form data available');
-      alert('Please select a form first');
+      addMessage('Please select a form first', 'error');
       return;
     }
 
     try {
-      console.log('Running form filler with data:', formData);
+      resetFormFillingDisplay();
       const result = await window.api.runFormFiller(formData);
       
       if (result.success) {
-        alert('Form filled successfully');
+        addMessage('Form filled successfully', 'success');
+        updateProgress(100);
       } else {
-        alert('Form filling failed: ' + result.error);
+        addMessage(`Form filling failed: ${result.error}`, 'error');
       }
     } catch (error) {
       console.error('Error running form filler:', error);
-      alert('Error: ' + error.message);
+      addMessage(`Error: ${error.message}`, 'error');
     }
   });
 
-  // Update delete button handler
-  const deleteButton = document.getElementById('deleteButton');
-  deleteButton.addEventListener('click', async () => {
-    const selectedIndex = applicationSelect.value;
-    const selectedData = formDataList[selectedIndex];
-    if (!selectedData) {
-      alert('Please select an item to delete');
-      return;
-    }
-
-    if (confirm('Are you sure you want to delete this item?')) {
-      try {
-        await window.api.deleteFormData(selectedData._id);
-        // Refresh form data list
-        const dataResponse = await window.api.fetchFormData(currentUser._id);
-        if (dataResponse.success) {
-          formDataList = dataResponse.data;
-          await populateApplicationSelect(formDataList);
-        }
-      } catch (error) {
-        console.error('Error deleting form data:', error);
-        alert('Failed to delete the item');
-      }
-    }
-  });
-
-  // 添加一个函数来格式化callback信息
-  function formatCallbackInfo(info) {
-    // 如果info是对象,转换为字符串
-    if (typeof info === 'object') {
-      return JSON.stringify(info, null, 2);
-    }
-    return info;
-  }
-
-  // 添加一个函数来更新callback显示
-  function updateCallbackInfo(info) {
-    const callbackElement = document.getElementById('callbackInfo');
-    if (!callbackElement) return;
-
-    // 只显示有价值的信息
-    let displayText = '';
-    if (typeof info === 'string' && info.includes('Filling')) {
-      displayText = info;  // 显示填充相关的信息
-    } else if (typeof info === 'object' && info.action) {
-      displayText = `${info.action}: ${info.value || ''}`; // 显示动作和值
-    }
-
-    if (displayText) {
-      callbackElement.textContent = displayText;
-    }
-  }
-
-  // 在初始化时设置callback监听
-  window.electron.onCallbackInfo((info) => {
-    updateCallbackInfo(info);
-  });
+  // 设置回调监听
+  window.api.onCallbackInfo(updateCallbackInfo);
 });
 
 async function populateApplicationSelect(formData) {
