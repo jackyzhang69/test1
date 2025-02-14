@@ -99,6 +99,8 @@ async function handleLogin(e) {
         
         DOM_ELEMENTS.loginContainer().classList.add('hidden');
         DOM_ELEMENTS.appContainer().classList.remove('hidden');
+        
+        setupDeleteButton();
       } else {
         errorMessage.textContent = dataResponse.error || 'Login successful, but form data fetch failed.';
       }
@@ -145,15 +147,50 @@ document.addEventListener('DOMContentLoaded', () => {
   window.api.onCallbackInfo(updateCallbackInfo);
 });
 
-async function populateApplicationSelect(formData) {
-  const select = document.getElementById('application-select');
-  select.innerHTML = '<option value="">Select an application...</option>';
+function populateApplicationSelect(formDataList) {
+  const select = DOM_ELEMENTS.applicationSelect();
+  if (!select) return;
   
-  formData.forEach((form, index) => {
+  select.innerHTML = '';
+  formDataList.forEach((formData, index) => {
     const option = document.createElement('option');
     option.value = index;
-    // 使用应用名称而不是序号
-    option.textContent = `${form.application_name} (${form.application_id})`;
+    // 只显示名称，移除 ID 信息
+    option.textContent = formData.application_name || 'Unnamed Form';
     select.appendChild(option);
+  });
+}
+
+function setupDeleteButton() {
+  const deleteButton = DOM_ELEMENTS.deleteButton();
+  if (!deleteButton) return;
+
+  deleteButton.addEventListener('click', async () => {
+    const select = DOM_ELEMENTS.applicationSelect();
+    if (!select) return;
+    
+    const selectedIndex = select.value;
+    const selectedForm = formDataList[selectedIndex];
+    
+    if (!selectedForm) {
+      addMessage('Please select a form first', 'error');
+      return;
+    }
+
+    try {
+      const result = await window.api.deleteFormData(selectedForm._id);
+      if (result) {
+        // 从列表中移除已删除的表单
+        formDataList.splice(selectedIndex, 1);
+        // 重新填充选择框
+        populateApplicationSelect(formDataList);
+        addMessage('Form deleted successfully', 'success');
+      } else {
+        addMessage('Failed to delete form', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting form:', error);
+      addMessage(`Error: ${error.message}`, 'error');
+    }
   });
 } 
