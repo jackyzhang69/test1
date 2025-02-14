@@ -170,7 +170,7 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
   }
 });
 
-ipcMain.handle('runFormFiller', async (event, formData) => {
+ipcMain.handle('runFormFiller', async (event, formData, headless) => {
   console.log('runFormFiller called with data:', formData);
   try {
     const fetch_func = (key) => {
@@ -185,10 +185,9 @@ ipcMain.handle('runFormFiller', async (event, formData) => {
       });
     };
 
-    // 启动 Playwright
-    const playwright = require('playwright');
-    const browser = await playwright.chromium.launch({
-      headless: false,
+    // Launch browser with headless option
+    const browser = await chromium.launch({ 
+      headless: headless,
     });
     const context = await browser.newContext({
       viewport: null
@@ -236,6 +235,11 @@ ipcMain.handle('delete-form-data', async (event, id) => {
         console.error('Error deleting form data:', error);
         throw error;
     }
+});
+
+// 添加新的 IPC 处理程序
+ipcMain.handle('exit-app', () => {
+  app.quit();
 });
 
 module.exports = { createWindow, initMongoDB }; 

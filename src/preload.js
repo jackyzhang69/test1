@@ -6,7 +6,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   login: (credentials) => ipcRenderer.invoke('login', credentials),
   fetchFormData: (userId) => ipcRenderer.invoke('fetchFormData', userId),
-  runFormFiller: (formData) => ipcRenderer.invoke('runFormFiller', formData),
+  runFormFiller: (formData, headless) => ipcRenderer.invoke('runFormFiller', formData, headless),
   onCallbackInfo: (callback) => ipcRenderer.on('callback-info', (_, info) => callback(info)),
-  deleteFormData: (id) => ipcRenderer.invoke('delete-form-data', id)
+  deleteFormData: (id) => ipcRenderer.invoke('delete-form-data', id),
+  exitApp: () => ipcRenderer.invoke('exit-app')
 }); 

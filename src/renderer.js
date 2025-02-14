@@ -14,7 +14,9 @@ const DOM_ELEMENTS = {
   formDetails: () => document.getElementById('form-details'),
   progressBar: () => document.getElementById('progressBar'),
   messageList: () => document.getElementById('messageList'),
-  callbackInfo: () => document.getElementById('callbackInfo')
+  callbackInfo: () => document.getElementById('callbackInfo'),
+  exitButton: () => document.getElementById('exitButton'),
+  headlessMode: () => document.getElementById('headlessMode'),
 };
 
 // 状态管理
@@ -118,30 +120,45 @@ document.addEventListener('DOMContentLoaded', () => {
   // 设置事件监听器
   DOM_ELEMENTS.loginForm()?.addEventListener('submit', handleLogin);
   
-  DOM_ELEMENTS.fillFormBtn()?.addEventListener('click', async () => {
-    const selectedIndex = DOM_ELEMENTS.applicationSelect()?.value;
-    const formData = formDataList[selectedIndex];
-    
-    if (!formData) {
-      addMessage('Please select a form first', 'error');
-      return;
-    }
-
-    try {
-      resetFormFillingDisplay();
-      const result = await window.api.runFormFiller(formData);
-      
-      if (result.success) {
-        addMessage('Form filled successfully', 'success');
-        updateProgress(100);
-      } else {
-        addMessage(`Form filling failed: ${result.error}`, 'error');
+  // 设置退出按钮
+  const exitButton = DOM_ELEMENTS.exitButton();
+  if (exitButton) {
+    exitButton.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to exit?')) {
+        await window.api.exitApp();
       }
-    } catch (error) {
-      console.error('Error running form filler:', error);
-      addMessage(`Error: ${error.message}`, 'error');
-    }
-  });
+    });
+  }
+
+  // 修改填充表单按钮的处理程序
+  const fillFormBtn = DOM_ELEMENTS.fillFormBtn();
+  if (fillFormBtn) {
+    fillFormBtn.addEventListener('click', async () => {
+      const selectedIndex = DOM_ELEMENTS.applicationSelect().value;
+      const formData = formDataList[selectedIndex];
+      const headless = DOM_ELEMENTS.headlessMode().checked;
+
+      if (!formData) {
+        addMessage('Please select a form first', 'error');
+        return;
+      }
+
+      try {
+        resetFormFillingDisplay();
+        const result = await window.api.runFormFiller(formData, headless);
+        
+        if (result.success) {
+          addMessage('Form filled successfully', 'success');
+          updateProgress(100);
+        } else {
+          addMessage(`Form filling failed: ${result.error}`, 'error');
+        }
+      } catch (error) {
+        console.error('Error running form filler:', error);
+        addMessage(`Error: ${error.message}`, 'error');
+      }
+    });
+  }
 
   // 设置回调监听
   window.api.onCallbackInfo(updateCallbackInfo);

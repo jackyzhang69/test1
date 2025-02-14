@@ -378,4 +378,49 @@ input:focus {
 
 .message-list::-webkit-scrollbar {
     display: none;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-container input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.checkbox-container label {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.checkbox-container label:hover::after {
+    content: "Headless mode runs the browser in the background without showing a window. This is faster and uses less resources. If you want to see the browser window, uncheck this option.";
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    max-width: 250px;
+    width: max-content;
+    line-height: 1.4;
+    margin-bottom: 5px;
+    z-index: 1000;
+    white-space: normal;
+}
+
+.secondary-button {
+    background-color: #6c757d;
+    color: white;
+}
+
+.secondary-button:hover {
+    background-color: #5a6268;
 } 

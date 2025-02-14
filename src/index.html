@@ -36,6 +36,12 @@
           <option value="">Select an application...</option>
         </select>
         <div class="button-container">
+          <div class="checkbox-container">
+            <input type="checkbox" id="headlessMode" checked>
+            <label for="headlessMode">
+              Run in headless mode
+            </label>
+          </div>
           <button id="fillFormBtn" class="action-button primary-button">
             <i class="fas fa-play"></i>
             Fill Form
@@ -43,6 +49,10 @@
           <button id="deleteButton" class="action-button danger-button">
             <i class="fas fa-trash"></i>
             Delete
+          </button>
+          <button id="exitButton" class="action-button secondary-button">
+            <i class="fas fa-sign-out-alt"></i>
+            Exit
           </button>
         </div>
       </div>
