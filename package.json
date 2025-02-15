@@ -67,6 +67,14 @@
       },
       "timestamp": "http://timestamp.apple.com/ts01"
     },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
     "asar": true,
     "asarUnpack": [
       "node_modules/@playwright/test/**/*",
