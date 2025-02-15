@@ -11,6 +11,7 @@ const { FormFillingData } = require('./form_filling_data');
 const { WebFiller } = require('./webfiller');
 const { MongoClient, ObjectId } = require('mongodb');
 const { loadEnvConfig } = require('./config');
+const fs = require('fs');
 
 // Load environment variables before anything else
 loadEnvConfig();
@@ -172,7 +173,28 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
 
 ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
   try {
-    const browser = await chromium.launch({ headless });
+    let executablePath;
+    
+    if (app.isPackaged) {
+      const browserPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ms-playwright');
+      
+      if (process.platform === 'win32') {
+        // Windows: need to find the chrome.exe inside version-specific folder
+        const chromiumDir = fs.readdirSync(browserPath)
+          .find(dir => dir.startsWith('chromium-'));
+        executablePath = path.join(browserPath, chromiumDir, 'chrome-win', 'chrome.exe');
+      } else {
+        // macOS: more straightforward path
+        executablePath = path.join(browserPath, 'chromium-*', 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
+      }
+      
+      console.log('Using Chrome executable:', executablePath);
+    }
+
+    const browser = await chromium.launch({ 
+      headless,
+      ...(executablePath && { executablePath })
+    });
     const page = await browser.newPage();
 
     // 创建一个回调函数来发送进度信息

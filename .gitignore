@@ -204,3 +204,5 @@ gwt-unitCache
 external-bin/
 
 journal.md
+
+.local-chromium/
