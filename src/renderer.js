@@ -17,6 +17,7 @@ const DOM_ELEMENTS = {
   callbackInfo: () => document.getElementById('callbackInfo'),
   exitButton: () => document.getElementById('exitButton'),
   headlessMode: () => document.getElementById('headlessMode'),
+  timeout: () => document.getElementById('timeout'),
 };
 
 // 状态管理
@@ -137,15 +138,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const selectedIndex = DOM_ELEMENTS.applicationSelect().value;
       const formData = formDataList[selectedIndex];
       const headless = DOM_ELEMENTS.headlessMode().checked;
+      const timeout = parseInt(DOM_ELEMENTS.timeout().value) || 30; // 获取超时值
 
       if (!formData) {
         addMessage('Please select a form first', 'error');
         return;
       }
 
+      resetFormFillingDisplay();
       try {
-        resetFormFillingDisplay();
-        const result = await window.api.runFormFiller(formData, headless);
+        const result = await window.api.runFormFiller(formData, headless, timeout);
         
         if (result.success) {
           addMessage('Form filled successfully', 'success');

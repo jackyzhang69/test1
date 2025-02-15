@@ -353,12 +353,12 @@ class PwEngine {
         const localFilePath = path.join(tempDir, fileName);
         // download from s3, then set_input_files
         await download_from_s3(s3Path, localFilePath);
-        await element.setInputFiles(localFilePath, { timeout: 60000 });
+        await element.setInputFiles(localFilePath, { timeout: this.timeout });
       } else {
-        await element.setInputFiles(data);
+        await element.setInputFiles(data, { timeout: this.timeout });
       }
     } else if (data && data.path) {
-      await element.setInputFiles(data.path);
+      await element.setInputFiles(data.path, { timeout: this.timeout });
     }
   }
 
@@ -398,8 +398,8 @@ class PwEngine {
   }
 
   async wait(selector, option, data) {
-    // expect element to be visible, default 10s
-    await expect(await this._element(selector)).toBeVisible({ timeout: 10000 });
+    // 使用配置的超时时间
+    await expect(await this._element(selector)).toBeVisible({ timeout: this.timeout });
   }
 
   async batch_click(selector, option, data) {
@@ -491,7 +491,7 @@ class PwEngine {
 // WebFiller class
 // -------------------------------------------------------------------
 class WebFiller {
-  constructor(fillergraph, fetch_func, pause_at = null, screenshot = false, logger = console.log) {
+  constructor(fillergraph, fetch_func, pause_at = null, screenshot = false, logger = console.log, timeout = 30) {
     this.fillergraph = fillergraph;
     this.fetch_func = fetch_func;
     this.invalid_fields = [];
@@ -501,6 +501,7 @@ class WebFiller {
     this.logger = logger;
     this.cursor = 0;
     this.context = {};
+    this.timeout = timeout * 1000; // 转换为毫秒
   }
 
   async fill(page) {

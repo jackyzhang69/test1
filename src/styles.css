@@ -389,18 +389,23 @@ input:focus {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-bottom: 10px;
 }
 
 .checkbox-container input[type="checkbox"] {
+    margin: 0;
     width: 16px;
     height: 16px;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .checkbox-container label {
     cursor: pointer;
     user-select: none;
     position: relative;
+    margin: 0;
+    flex: 1;
 }
 
 .checkbox-container label:hover::after {
@@ -428,4 +433,71 @@ input:focus {
 
 .secondary-button:hover {
     background-color: #5a6268;
+}
+
+.input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.input-container input[type="number"] {
+    width: 80px;
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.input-container label {
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+.settings-container {
+    margin-bottom: 15px;
+}
+
+.setting-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.setting-item:last-child {
+    margin-bottom: 0;
+}
+
+.setting-item input[type="number"] {
+    width: 70px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.setting-item label {
+    font-size: 14px;
+    color: var(--text-color);
+}
+
+.button-container {
+    display: flex;
+    gap: 10px;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    margin: 0;
+    width: 16px;
+    height: 16px;
+}
+
+.checkbox-wrapper span {
+    margin-left: 8px;
 } 

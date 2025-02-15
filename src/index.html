@@ -37,25 +37,34 @@
         <select id="application-select" class="application-select">
           <option value="">Select an application...</option>
         </select>
-        <div class="button-container">
-          <div class="checkbox-container">
-            <input type="checkbox" id="headlessMode" checked>
-            <label for="headlessMode">
-              Do not show the browser window
-            </label>
+        <div class="form-filling">
+          <div class="settings-container">
+            <div class="setting-item">
+              <label for="timeout" title="Setting timeout amount when stuck">Timeout (seconds):</label>
+              <input type="number" id="timeout" value="30" min="1" max="300" title="Setting timeout amount when stuck">
+            </div>
+            <div class="setting-item">
+              <div class="checkbox-wrapper">
+                <input type="checkbox" id="headlessMode" checked>
+                <span>Do not show browser window</span>
+              </div>
+            </div>
           </div>
-          <button id="fillFormBtn" class="action-button primary-button">
-            <i class="fas fa-play"></i>
-            Fill Form
-          </button>
-          <button id="deleteButton" class="action-button danger-button">
-            <i class="fas fa-trash"></i>
-            Delete
-          </button>
-          <button id="exitButton" class="action-button secondary-button">
-            <i class="fas fa-sign-out-alt"></i>
-            Exit
-          </button>
+
+          <div class="button-container">
+            <button id="fillFormBtn" class="action-button primary-button">
+              <i class="fas fa-play"></i>
+              Fill Form
+            </button>
+            <button id="deleteButton" class="action-button danger-button">
+              <i class="fas fa-trash"></i>
+              Delete
+            </button>
+            <button id="exitButton" class="action-button secondary-button">
+              <i class="fas fa-sign-out-alt"></i>
+              Exit
+            </button>
+          </div>
         </div>
       </div>
       
