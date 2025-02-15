@@ -170,36 +170,28 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
   }
 });
 
-ipcMain.handle('runFormFiller', async (event, formData, headless) => {
-  console.log('runFormFiller called with data:', formData);
+ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
   try {
-    const fetch_func = (key) => {
-      return formData[key];
-    };
+    const browser = await chromium.launch({ headless });
+    const page = await browser.newPage();
 
-    // 创建一个格式化的 logger
+    // 创建一个回调函数来发送进度信息
     const logger = (info) => {
-      event.sender.send('callback-info', {
-        progress: info.progress,
-        message: info.message
-      });
+      mainWindow.webContents.send('callback-info', info);
     };
 
-    // Launch browser with headless option
-    const browser = await chromium.launch({ 
-      headless: headless,
-    });
-    const context = await browser.newContext({
-      viewport: null
-    });
-    const page = await context.newPage();
+    // 创建一个获取数据的函数
+    const fetch_func = async (field_name) => {
+      return formData[field_name];
+    };
 
     const filler = new WebFiller(
       formData,
       fetch_func,
       null,
       false,
-      logger
+      logger,
+      timeout
     );
 
     filler.actions = formData.actions;
