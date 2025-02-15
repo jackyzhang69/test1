@@ -18,6 +18,7 @@ const DOM_ELEMENTS = {
   exitButton: () => document.getElementById('exitButton'),
   headlessMode: () => document.getElementById('headlessMode'),
   timeout: () => document.getElementById('timeout'),
+  refreshButton: () => document.getElementById('refreshButton'),
 };
 
 // 状态管理
@@ -116,6 +117,27 @@ async function handleLogin(e) {
   }
 }
 
+async function handleRefresh() {
+  try {
+    if (!currentUser) {
+      addMessage('Please login first', 'error');
+      return;
+    }
+
+    const dataResponse = await window.api.refreshFormData(currentUser._id);
+    if (dataResponse.success) {
+      formDataList = dataResponse.data;
+      await populateApplicationSelect(formDataList);
+      addMessage('Applications refreshed successfully', 'success');
+    } else {
+      addMessage(dataResponse.error || 'Failed to refresh applications', 'error');
+    }
+  } catch (error) {
+    console.error('Refresh error:', error);
+    addMessage('An error occurred while refreshing', 'error');
+  }
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
   // 设置事件监听器
@@ -164,6 +186,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 设置回调监听
   window.api.onCallbackInfo(updateCallbackInfo);
+
+  // 设置刷新按钮
+  const refreshButton = DOM_ELEMENTS.refreshButton();
+  if (refreshButton) {
+    refreshButton.addEventListener('click', handleRefresh);
+  }
 });
 
 function populateApplicationSelect(formDataList) {

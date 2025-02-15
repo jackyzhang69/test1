@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld('api', {
   runFormFiller: (formData, headless, timeout) => ipcRenderer.invoke('runFormFiller', formData, headless, timeout),
   onCallbackInfo: (callback) => ipcRenderer.on('callback-info', (_, info) => callback(info)),
   deleteFormData: (id) => ipcRenderer.invoke('delete-form-data', id),
-  exitApp: () => ipcRenderer.invoke('exit-app')
+  exitApp: () => ipcRenderer.invoke('exit-app'),
+  refreshFormData: (userId) => ipcRenderer.invoke('fetchFormData', userId)
 }); 
