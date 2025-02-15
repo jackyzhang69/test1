@@ -7,7 +7,7 @@
     "start": "cross-env NODE_ENV=development electron .",
     "postinstall": "npx playwright install chromium",
     "pack": "electron-builder --dir",
-    "dist": "npm run prepare-chromium && electron-builder",
+    "dist": "electron-builder",
     "dist-win": "npm run prepare-chromium && electron-builder --win",
     "prebuild": "npx playwright install chromium",
     "prepare-chromium": "node scripts/prepare-chromium.js"
@@ -36,11 +36,7 @@
       "src/**/*",
       "package.json",
       ".env",
-      "node_modules/@playwright/test/",
-      {
-        "from": ".local-chromium",
-        "to": "resources/app.asar.unpacked/ms-playwright"
-      }
+      "node_modules/@playwright/test/"
     ],
     "extraResources": [
       {
@@ -78,22 +74,22 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "extraFiles": [
+        {
+          "from": ".local-chromium",
+          "to": "resources/app.asar.unpacked/ms-playwright",
+          "filter": [
+            "chromium-*/**/*",
+            "ffmpeg-*/**/*"
+          ]
+        }
+      ]
     },
     "asar": true,
     "asarUnpack": [
       "node_modules/@playwright/test/**/*",
       "ms-playwright/**/*"
-    ],
-    "extraFiles": [
-      {
-        "from": ".local-chromium",
-        "to": "resources/app.asar.unpacked/ms-playwright",
-        "filter": [
-          "chromium-*/**/*",
-          "ffmpeg-*/**/*"
-        ]
-      }
     ]
   }
 }
