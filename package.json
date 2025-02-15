@@ -79,6 +79,14 @@
       ],
       "icon": "build/icon.ico"
     },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
     "asar": true,
     "asarUnpack": [
       "node_modules/@playwright/test/**/*",
