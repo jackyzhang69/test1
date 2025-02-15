@@ -337,9 +337,8 @@ class PwEngine {
       console.log(`Pause for ${data} seconds...`);
       await sleep(parseFloat(data));
     } else {
-      // In Python: self.page.pause(), which opens Playwright inspector
-      // In Node: page.pause() is part of the debug mode: https://playwright.dev/docs/debug#pause
-      await this.page.pause();
+      // Skip pause in production, do nothing
+      console.log('Skipping pause in production');
     }
   }
 
