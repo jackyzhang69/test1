@@ -184,8 +184,8 @@ ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
           .find(dir => dir.startsWith('chromium-'));
         executablePath = path.join(browserPath, chromiumDir, 'chrome-win', 'chrome.exe');
       } else {
-        // macOS: more straightforward path
-        executablePath = path.join(browserPath, 'chromium-*', 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
+        // macOS: no need to specify the executable path
+        executablePath = null; // Set to null for macOS
       }
       
       console.log('Using Chrome executable:', executablePath);
@@ -193,8 +193,9 @@ ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
 
     const browser = await chromium.launch({ 
       headless,
-      ...(executablePath && { executablePath })
+      ...(process.platform === 'win32' && executablePath ? { executablePath } : {}) // Only use executablePath for Windows
     });
+    
     const page = await browser.newPage();
 
     // 创建一个回调函数来发送进度信息
