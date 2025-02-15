@@ -75,17 +75,12 @@
     },
     "win": {
       "target": [
-        "nsis"
-      ],
-      "icon": "build/icon.ico"
-    },
-    "win": {
-      "target": [
         {
           "target": "nsis",
           "arch": ["x64"]
         }
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "asar": true,
     "asarUnpack": [
