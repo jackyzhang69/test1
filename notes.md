@@ -175,3 +175,494 @@ const userDataPath = path.join(app.getPath("userData"), "data");
    - 添加适当的 entitlements
    - 确保文件权限正确（chmod）
    - 考虑使用 hardened runtime
+
+## 9. 构建和分发详细指南
+
+### 9.1 基础依赖配置
+
+关键依赖包括:
+
+```json
+{
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.744.0",
+    "@electron/notarize": "^2.5.0",
+    "@playwright/test": "^1.42.1",
+    "aws-sdk": "^2.1692.0",
+    "dotenv": "^16.3.1",
+    "mongodb": "^6.3.0",
+    "playwright": "^1.42.1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^34.2.0",
+    "electron-builder": "^24.13.3"
+  }
+}
+```
+
+主要包含:
+
+- `@playwright/test` 和 `playwright`: 用于浏览器自动化
+- `electron` 和 `electron-builder`: 用于应用打包
+- `cross-env`: 跨平台环境变量设置
+
+### 9.2 脚本配置
+
+关键脚本:
+
+```json
+{
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "cross-env NODE_ENV=development electron .",
+    "postinstall": "npx playwright install chromium",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist-win": "npm run prepare-chromium && electron-builder --win",
+    "prebuild": "npx playwright install chromium",
+    "prepare-chromium": "node scripts/prepare-chromium.js",
+    "package": "electron-builder build --publish never"
+  }
+}
+```
+
+重要脚本说明:
+
+- `postinstall`: 安装依赖后自动安装 Chromium
+- `prebuild`: 构建前确保 Chromium 已安装
+- `pack`: 打包到目录
+- `dist`: 构建分发包
+- `dist-win`: Windows 专用构建脚本
+- `prepare-chromium`: 准备 Chromium 相关文件
+
+### 9.3 Electron Builder 配置
+
+主要配置项:
+
+```json
+{
+  "build": {
+    "appId": "com.watchpup.frombro",
+    "productName": "FormBro",
+    "files": [
+      "src/**/*",
+      "package.json",
+      ".env",
+      "node_modules/@playwright/test/"
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "target": {
+        "target": "dmg",
+        "arch": ["arm64", "x64"]
+      },
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "executableName": "FormBro",
+      "timestamp": "http://timestamp.apple.com/ts01",
+      "icon": "build/icon.icns",
+      "notarize": {
+        "teamId": "K7GGZ8W679"
+      }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "extraFiles": [
+        {
+          "from": ".local-chromium",
+          "to": "resources/app.asar.unpacked/ms-playwright",
+          "filter": ["chromium-*/**/*", "ffmpeg-*/**/*"]
+        }
+      ]
+    },
+    "asar": true,
+    "asarUnpack": ["node_modules/@playwright/test/**/*", "ms-playwright/**/*"]
+  }
+}
+```
+
+### 9.4 Playwright 浏览器处理
+
+1. 浏览器路径配置:
+
+```javascript
+// 配置 Playwright 的路径
+if (app.isPackaged) {
+  // 更新：在打包时，ms-playwright 被 asarUnpack 到 app.asar.unpacked 内
+  const playwrightPath = path.join(
+    process.resourcesPath,
+    "app.asar.unpacked",
+    "ms-playwright"
+  );
+  process.env.PLAYWRIGHT_BROWSERS_PATH = playwrightPath;
+  console.log(
+    "Setting Playwright browsers path:",
+    process.env.PLAYWRIGHT_BROWSERS_PATH
+  );
+}
+```
+
+2. Windows 专用 Chromium 准备脚本 (scripts/prepare-chromium.js):
+
+```javascript
+async function prepareChromium() {
+  const sourcePath = await getChromiumPath();
+  const destPath = path.join(process.cwd(), ".local-chromium");
+
+  // 确保目录存在
+  if (!fs.existsSync(destPath)) {
+    fs.mkdirSync(destPath, { recursive: true });
+  }
+
+  // 查找最新的 Chromium 和 ffmpeg 版本目录
+  const entries = fs.readdirSync(sourcePath);
+  const chromiumDirs = entries
+    .filter((entry) => entry.startsWith("chromium-"))
+    .sort((a, b) => b.localeCompare(a));
+
+  const ffmpegDirs = entries
+    .filter((entry) => entry.startsWith("ffmpeg-"))
+    .sort((a, b) => b.localeCompare(a));
+
+  const latestChromium = chromiumDirs[0];
+  const latestFfmpeg = ffmpegDirs[0];
+
+  // 复制最新的 Chromium 和 ffmpeg
+  if (latestChromium) {
+    fs.cpSync(
+      path.join(sourcePath, latestChromium),
+      path.join(destPath, latestChromium),
+      { recursive: true }
+    );
+  }
+
+  if (latestFfmpeg) {
+    fs.cpSync(
+      path.join(sourcePath, latestFfmpeg),
+      path.join(destPath, latestFfmpeg),
+      { recursive: true }
+    );
+  }
+}
+```
+
+### 9.5 macOS 特殊处理
+
+1. 权限配置文件 (build/entitlements.mac.plist):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.debugger</key>
+    <true/>
+    <key>com.apple.security.inherit</key>
+    <true/>
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+  </dict>
+</plist>
+```
+
+2. 签名脚本示例:
+
+```bash
+export APPLE_ID="your.email@example.com"
+export APPLE_APP_SPECIFIC_PASSWORD="your-app-specific-password"
+export APPLE_TEAM_ID="your-team-id"
+export CSC_LINK="~/certificate.p12"
+export CSC_KEY_PASSWORD="your-password"
+npm run package
+```
+
+### 9.6 环境变量处理
+
+环境变量加载逻辑:
+
+```javascript
+function loadEnvConfig() {
+  if (process.env.NODE_ENV === "development") {
+    dotenv.config();
+  } else {
+    const envPath = path.join(process.resourcesPath, ".env");
+    const result = dotenv.config({ path: envPath });
+    if (result.error) {
+      throw new Error("Could not load .env file");
+    }
+  }
+}
+```
+
+### 9.7 注意事项和最佳实践
+
+1. 路径处理:
+
+   - 使用 `app.getAppPath()` 获取应用根目录
+   - 使用 `path.join()` 处理所有路径拼接
+   - 区分开发环境和生产环境的路径
+
+2. 安全考虑:
+
+   - macOS 的 hardened runtime
+   - Windows 的文件权限处理
+   - 浏览器二进制文件的完整性
+
+3. 性能优化:
+
+   - 只打包必要的浏览器组件
+   - 使用 `asarUnpack` 处理大型二进制文件
+   - 合理配置缓存策略
+
+4. 常见问题处理:
+   - 确保所有依赖都正确安装
+   - 检查文件路径和权限
+   - 验证签名和证书配置
+   - 测试不同平台的打包结果
+
+## 10. macOS 代码签名详细指南
+
+### 10.1 前期准备
+
+1. 必要条件：
+
+   - Apple Developer 账号
+   - Apple Developer 证书
+   - 团队 ID (Team ID)
+   - App Specific Password
+   - 开发证书 (.p12 文件)
+
+2. 依赖安装：
+
+```bash
+npm install --save-dev @electron/notarize
+```
+
+### 10.2 配置文件设置
+
+1. package.json 中的 mac 配置：
+
+```json
+{
+  "build": {
+    "mac": {
+      "target": {
+        "target": "dmg",
+        "arch": ["arm64", "x64"]
+      },
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "executableName": "YourAppName",
+      "timestamp": "http://timestamp.apple.com/ts01",
+      "icon": "build/icon.icns",
+      "notarize": {
+        "teamId": "YOUR_TEAM_ID"
+      }
+    }
+  }
+}
+```
+
+2. entitlements.mac.plist 权限配置：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.debugger</key>
+    <true/>
+    <key>com.apple.security.inherit</key>
+    <true/>
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+  </dict>
+</plist>
+```
+
+### 10.3 环境变量配置
+
+1. .env 文件配置：
+
+```env
+# Apple Developer 账号信息
+APPLE_ID=your.email@example.com
+APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
+APPLE_TEAM_ID=XXXXXXXXXX
+
+# 证书信息
+CSC_LINK=/absolute/path/to/certificate.p12
+CSC_KEY_PASSWORD=your-certificate-password
+```
+
+2. 推荐的签名脚本 (build/sign-mac.sh)：
+
+```bash
+#!/bin/bash
+
+# 加载环境变量
+source .env
+
+# 设置错误处理
+set -e
+
+# 验证必要的环境变量
+if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+    echo "Error: Missing required environment variables"
+    exit 1
+fi
+
+# 验证证书文件存在
+if [ ! -f "$CSC_LINK" ]; then
+    echo "Error: Certificate file not found at $CSC_LINK"
+    exit 1
+fi
+
+# 导出环境变量
+export APPLE_ID
+export APPLE_APP_SPECIFIC_PASSWORD
+export APPLE_TEAM_ID
+export CSC_LINK
+export CSC_KEY_PASSWORD
+
+# 运行打包命令
+echo "Starting package process..."
+npm run package
+
+# 验证签名
+echo "Verifying signature..."
+codesign -v --verify --verbose "dist/mac/YourApp.app"
+
+# 验证公证
+echo "Verifying notarization..."
+spctl --assess -v "dist/mac/YourApp.app"
+
+echo "Package process completed successfully"
+```
+
+### 10.4 签名流程
+
+1. 准备工作：
+
+   ```bash
+   # 添加脚本执行权限
+   chmod +x build/sign-mac.sh
+
+   # 确保环境变量文件存在
+   touch .env
+   ```
+
+2. 执行签名：
+
+   ```bash
+   ./build/sign-mac.sh
+   ```
+
+3. 验证步骤：
+
+   ```bash
+   # 验证应用签名
+   codesign -v --verify --verbose "dist/mac/YourApp.app"
+
+   # 验证公证状态
+   spctl --assess -v "dist/mac/YourApp.app"
+   ```
+
+### 10.5 常见问题和解决方案
+
+1. 签名失败：
+
+   - 检查证书有效性
+   - 确认环境变量正确设置
+   - 验证 Apple Developer 账号状态
+
+2. 公证失败：
+
+   - 确保应用已正确签名
+   - 检查 entitlements 配置
+   - 查看详细的公证日志：
+     ```bash
+     xcrun altool --notarization-history 0 -u "your.email@example.com"
+     ```
+
+3. 权限问题：
+   - 检查 entitlements.mac.plist 配置
+   - 确保 hardenedRuntime 已启用
+   - 验证证书类型是否正确
+
+### 10.6 安全最佳实践
+
+1. 证书管理：
+
+   - 安全存储证书文件
+   - 定期更新证书
+   - 不要在版本控制中提交证书
+
+2. 环境变量：
+
+   - 使用 .env 文件管理敏感信息
+   - 在 .gitignore 中排除 .env 文件
+   - 为不同环境维护不同的 .env 文件
+
+3. CI/CD 集成：
+
+   - 使用加密的环境变量
+   - 安全存储证书
+   - 自动化签名和验证过程
+
+4. 日志和监控：
+   - 记录签名过程
+   - 监控证书有效期
+   - 保存签名和公证日志
+
+### 10.7 维护和更新
+
+1. 定期任务：
+
+   - 检查证书有效期
+   - 更新签名脚本
+   - 验证签名配置
+
+2. 版本更新：
+
+   - 更新 electron-builder 配置
+   - 检查 entitlements 需求
+   - 测试签名流程
+
+3. 文档维护：
+   - 更新签名流程文档
+   - 记录问题和解决方案
+   - 维护证书信息
