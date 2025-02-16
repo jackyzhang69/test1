@@ -1,6 +1,6 @@
 {
   "name": "formbro",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "src/main-electron.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -10,7 +10,8 @@
     "dist": "electron-builder",
     "dist-win": "npm run prepare-chromium && electron-builder --win",
     "prebuild": "npx playwright install chromium",
-    "prepare-chromium": "node scripts/prepare-chromium.js"
+    "prepare-chromium": "node scripts/prepare-chromium.js",
+    "package": "electron-builder build --publish never"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,7 @@
   "description": "",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.744.0",
+    "@electron/notarize": "^2.5.0",
     "@playwright/test": "^1.42.1",
     "aws-sdk": "^2.1692.0",
     "dotenv": "^16.3.1",
@@ -30,7 +32,7 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.formbro.app",
+    "appId": "com.watchpup.frombro",
     "productName": "FormBro",
     "files": [
       "src/**/*",
@@ -61,17 +63,19 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "executableName": "FormBro",
+      "timestamp": "http://timestamp.apple.com/ts01",
+      "icon": "build/icon.icns",
       "notarize": {
         "teamId": "K7GGZ8W679"
-      },
-      "timestamp": "http://timestamp.apple.com/ts01",
-      "icon": "build/icon.icns"
+      }
     },
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico",
