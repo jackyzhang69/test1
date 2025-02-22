@@ -24,6 +24,7 @@
     "aws-sdk": "^2.1692.0",
     "dotenv": "^16.3.1",
     "mongodb": "^6.3.0",
+    "pbkdf2": "^3.1.2",
     "playwright": "^1.42.1"
   },
   "devDependencies": {
