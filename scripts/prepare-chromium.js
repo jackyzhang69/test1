@@ -2,6 +2,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('child_process');
 
 async function getChromiumPath() {
   if (process.platform === 'win32') {
@@ -45,7 +46,25 @@ async function prepareChromium() {
   
   console.log(`Copying latest Chromium from: ${sourceChromiumPath}`);
   console.log(`Copying latest Chromium to: ${destChromiumPath}`);
-  fs.cpSync(sourceChromiumPath, destChromiumPath, { recursive: true });
+
+  // Remove destination if it exists
+  if (fs.existsSync(destChromiumPath)) {
+    if (process.platform === 'win32') {
+      execSync(`rmdir /s /q "${destChromiumPath}"`, { stdio: 'inherit' });
+    } else {
+      execSync(`rm -rf "${destChromiumPath}"`, { stdio: 'inherit' });
+    }
+  }
+
+  // Use platform-specific copy command to preserve symlinks
+  if (process.platform === 'win32') {
+    fs.cpSync(sourceChromiumPath, destChromiumPath, { recursive: true });
+  } else {
+    // Use cp -R on Mac/Linux to preserve symlinks
+    execSync(`cp -R "${sourceChromiumPath}" "${destChromiumPath}"`, { stdio: 'inherit' });
+    // Set write permissions for the copied files on Mac/Linux
+    execSync(`chmod -R u+w "${destChromiumPath}"`, { stdio: 'inherit' });
+  }
 
   // Copy latest ffmpeg if it exists
   if (latestFfmpeg) {
@@ -54,7 +73,24 @@ async function prepareChromium() {
     
     console.log(`Copying latest ffmpeg from: ${sourceFfmpegPath}`);
     console.log(`Copying latest ffmpeg to: ${destFfmpegPath}`);
-    fs.cpSync(sourceFfmpegPath, destFfmpegPath, { recursive: true });
+
+    // Remove destination if it exists
+    if (fs.existsSync(destFfmpegPath)) {
+      if (process.platform === 'win32') {
+        execSync(`rmdir /s /q "${destFfmpegPath}"`, { stdio: 'inherit' });
+      } else {
+        execSync(`rm -rf "${destFfmpegPath}"`, { stdio: 'inherit' });
+      }
+    }
+
+    // Copy with platform-specific command
+    if (process.platform === 'win32') {
+      fs.cpSync(sourceFfmpegPath, destFfmpegPath, { recursive: true });
+    } else {
+      execSync(`cp -R "${sourceFfmpegPath}" "${destFfmpegPath}"`, { stdio: 'inherit' });
+      // Set write permissions for the copied ffmpeg files on Mac/Linux
+      execSync(`chmod -R u+w "${destFfmpegPath}"`, { stdio: 'inherit' });
+    }
   } else {
     console.warn('ffmpeg not found. Some media capabilities might not work.');
   }

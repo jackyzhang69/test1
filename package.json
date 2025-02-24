@@ -9,9 +9,10 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist-win": "npm run prepare-chromium && electron-builder --win",
+    "dist-mac": "npm run prepare-chromium && electron-builder --mac",
     "prebuild": "npx playwright install chromium",
     "prepare-chromium": "node scripts/prepare-chromium.js",
-    "package": "electron-builder build --publish never"
+    "package": "npm run prepare-chromium && electron-builder build --publish never"
   },
   "keywords": [],
   "author": "",
@@ -68,7 +69,17 @@
       "icon": "build/icon.icns",
       "notarize": {
         "teamId": "K7GGZ8W679"
-      }
+      },
+      "extraFiles": [
+        {
+          "from": ".local-chromium",
+          "to": "resources/app.asar.unpacked/ms-playwright",
+          "filter": [
+            "chromium-*/**/*",
+            "ffmpeg-*/**/*"
+          ]
+        }
+      ]
     },
     "win": {
       "target": [

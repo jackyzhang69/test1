@@ -178,21 +178,23 @@ ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
       const browserPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ms-playwright');
       
       if (process.platform === 'win32') {
-        // Windows: need to find the chrome.exe inside version-specific folder
+        // Windows: find chrome.exe inside version-specific folder
         const chromiumDir = fs.readdirSync(browserPath)
           .find(dir => dir.startsWith('chromium-'));
         executablePath = path.join(browserPath, chromiumDir, 'chrome-win', 'chrome.exe');
-      } else {
-        // macOS: no need to specify the executable path
-        executablePath = null; // Set to null for macOS
+      } else if (process.platform === 'darwin') {
+        // macOS: find Chromium.app inside version-specific folder
+        const chromiumDir = fs.readdirSync(browserPath)
+          .find(dir => dir.startsWith('chromium-'));
+        executablePath = path.join(browserPath, chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
       }
       
-      console.log('Using Chrome executable:', executablePath);
+      console.log('Using Chromium executable:', executablePath);
     }
 
     const browser = await chromium.launch({ 
       headless,
-      ...(process.platform === 'win32' && executablePath ? { executablePath } : {}) // Only use executablePath for Windows
+      executablePath // Use the executablePath for both Windows and Mac
     });
     
     const page = await browser.newPage();
