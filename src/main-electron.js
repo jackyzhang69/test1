@@ -42,6 +42,16 @@ function logError(error) {
   });
 }
 
+function getScreenshotDir() {
+  if (app.isPackaged) {
+    // Use app's user data directory for installed app
+    return path.join(app.getPath('userData'), 'screenshots');
+  } else {
+    // Use current directory for development
+    return path.join(process.cwd(), 'screenshots');
+  }
+}
+
 async function createWindow() {
   console.log('Creating window...');
   const preloadPath = app.isPackaged 
@@ -172,6 +182,13 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
 
 ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
   try {
+    // Create screenshots directory if it doesn't exist
+    const screenshotDir = getScreenshotDir();
+    if (!fs.existsSync(screenshotDir)) {
+      fs.mkdirSync(screenshotDir, { recursive: true });
+    }
+    console.log('Screenshot directory:', screenshotDir);
+
     let executablePath;
     
     if (app.isPackaged) {
@@ -194,7 +211,7 @@ ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
 
     const browser = await chromium.launch({ 
       headless,
-      executablePath // Use the executablePath for both Windows and Mac
+      executablePath
     });
     
     const page = await browser.newPage();
@@ -215,7 +232,8 @@ ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
       null,
       false,
       logger,
-      timeout
+      timeout,
+      screenshotDir  // Pass screenshot directory to WebFiller
     );
 
     filler.actions = formData.actions;

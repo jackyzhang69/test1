@@ -27,6 +27,7 @@ class PwEngine {
     this.page = page;        // playwright Page instance
     this.context = context;  // dictionary-like object
     this.exhandler = exhandler;
+    this.screenshotDir = process.cwd(); // Default value, will be overridden
   }
 
   /**
@@ -471,8 +472,9 @@ class PwEngine {
       } catch (err) {
         // In Python, you screenshot and raise a RuntimeError
         const timeStr = currentTimeString();
-        const screenshotPath = `error_${action}_${timeStr}.png`;
+        const screenshotPath = path.join(this.screenshotDir, `error_${action}_${timeStr}.png`);
         await this.page.screenshot({ path: screenshotPath, fullPage: true });
+        console.log('Error screenshot saved:', screenshotPath);
         throw new Error(
           `Error with action (${action}), locator (${selector}), option (${option}), data (${data}), error: ${err}, screenshot: (${screenshotPath})`
         );
@@ -491,21 +493,23 @@ class PwEngine {
 // WebFiller class
 // -------------------------------------------------------------------
 class WebFiller {
-  constructor(fillergraph, fetch_func, pause_at = null, screenshot = false, logger = console.log, timeout = 30) {
-    this.fillergraph = fillergraph;
+  constructor(formData, fetch_func, validate_func, debug, logger, timeout, screenshotDir) {
+    this.fillergraph = formData;
     this.fetch_func = fetch_func;
     this.invalid_fields = [];
     this.actions = [];
-    this.pause_at = pause_at;
-    this.screenshot = screenshot;
+    this.pause_at = null;
+    this.screenshot = false;
     this.logger = logger;
     this.cursor = 0;
     this.context = {};
     this.timeout = timeout * 1000; // 转换为毫秒
+    this.screenshotDir = screenshotDir || process.cwd(); // Use provided dir or fallback to cwd
   }
 
   async fill(page) {
     const pwfiller = new PwEngine(page, this.context);
+    pwfiller.screenshotDir = this.screenshotDir;
     
     let index = 0;
     const steps = this.actions.length;
