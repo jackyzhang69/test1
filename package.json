@@ -52,6 +52,7 @@
       "output": "dist"
     },
     "mac": {
+      "artifactName": "FormBro-${arch}.${ext}",
       "target": {
         "target": "dmg",
         "arch": [
@@ -82,6 +83,7 @@
       ]
     },
     "win": {
+      "artifactName": "FormBro Setup.${ext}",
       "target": [
         {
           "target": "nsis",
