@@ -10,5 +10,9 @@ contextBridge.exposeInMainWorld('api', {
   onCallbackInfo: (callback) => ipcRenderer.on('callback-info', (_, info) => callback(info)),
   deleteFormData: (id) => ipcRenderer.invoke('delete-form-data', id),
   exitApp: () => ipcRenderer.invoke('exit-app'),
-  refreshFormData: (userId) => ipcRenderer.invoke('fetchFormData', userId)
+  refreshFormData: (userId) => ipcRenderer.invoke('fetchFormData', userId),
+  
+  // Add update-related events
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  onUpdateStatus: (callback) => ipcRenderer.on('update-status', (_, message) => callback(message))
 }); 

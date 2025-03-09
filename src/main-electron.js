@@ -12,6 +12,7 @@ const { WebFiller } = require('./webfiller');
 const { MongoClient, ObjectId } = require('mongodb');
 const { loadEnvConfig } = require('./config');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
 
 // Load environment variables before anything else
 loadEnvConfig();
@@ -24,6 +25,38 @@ console.log('Current directory:', __dirname);
 // 将 mainWindow 声明为全局变量
 let mainWindow = null;
 let db;
+
+// Configure auto-updater
+autoUpdater.logger = require('electron-log');
+autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+// NOTE: The update files in S3 must be publicly accessible
+// The bucket policy should allow public read access to the formbro-updates folder:
+// {
+//   "Version": "2012-10-17",
+//   "Statement": [
+//     {
+//       "Effect": "Allow",
+//       "Principal": "*",
+//       "Action": "s3:GetObject",
+//       "Resource": "arn:aws:s3:::immcopilot/formbro-updates/*"
+//     }
+//   ]
+// }
+
+// For S3 bucket with public access, you can optionally set the URL directly
+// This is useful if you're using CloudFront or a custom domain
+// autoUpdater.setFeedURL({
+//   provider: 's3',
+//   bucket: 'immcopilot',
+//   path: 'formbro-updates',
+//   region: 'us-east-1'
+// });
+
+// If using a generic server with a self-signed certificate, uncomment this line
+// process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // 配置 Playwright 的路径
 if (app.isPackaged) {
@@ -125,6 +158,12 @@ app.whenReady().then(async () => {
     // 再创建窗口
     await createWindow();
     console.log('Window created successfully');
+    
+    // Check for updates after window is created
+    checkForUpdates();
+    
+    // Set up a timer to check for updates periodically (every hour)
+    setInterval(checkForUpdates, 60 * 60 * 1000);
   } catch (error) {
     console.error('CRITICAL - Startup error:', error);
     app.quit();
@@ -155,6 +194,20 @@ ipcMain.handle('login', async (event, { email, password }) => {
     const user = Array.isArray(result) ? result[0] : result;
     if (!user) throw new Error("Login failed");
     return { success: true, user: user };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Add IPC handler for manual update checks
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    if (app.isPackaged) {
+      autoUpdater.checkForUpdatesAndNotify();
+      return { success: true, message: 'Checking for updates...' };
+    } else {
+      return { success: false, message: 'Updates are only available in packaged app' };
+    }
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -274,6 +327,57 @@ ipcMain.handle('delete-form-data', async (event, id) => {
 // 添加新的 IPC 处理程序
 ipcMain.handle('exit-app', () => {
   app.quit();
+});
+
+// Function to check for updates
+function checkForUpdates() {
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify();
+  }
+}
+
+// Auto-updater events
+autoUpdater.on('checking-for-update', () => {
+  console.log('Checking for update...');
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', 'Checking for update...');
+  }
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', `Update available: ${info.version}`);
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('Update not available:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', 'No updates available');
+  }
+});
+
+autoUpdater.on('error', (err) => {
+  console.error('Error in auto-updater:', err);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', `Update error: ${err.message}`);
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const message = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+  console.log(message);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', message);
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', `Update downloaded. It will be installed on restart.`);
+  }
 });
 
 module.exports = { createWindow, initMongoDB }; 

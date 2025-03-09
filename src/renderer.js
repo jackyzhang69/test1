@@ -19,6 +19,8 @@ const DOM_ELEMENTS = {
   headlessMode: () => document.getElementById('headlessMode'),
   timeout: () => document.getElementById('timeout'),
   refreshButton: () => document.getElementById('refreshButton'),
+  updateStatus: () => document.getElementById('update-status'),
+  checkUpdatesBtn: () => document.getElementById('check-updates-btn'),
 };
 
 // 状态管理
@@ -138,6 +140,14 @@ async function handleRefresh() {
   }
 }
 
+// Update status handling
+function updateStatusMessage(message) {
+  const updateStatus = DOM_ELEMENTS.updateStatus();
+  if (updateStatus) {
+    updateStatus.textContent = message;
+  }
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
   // 设置事件监听器
@@ -191,6 +201,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshButton = DOM_ELEMENTS.refreshButton();
   if (refreshButton) {
     refreshButton.addEventListener('click', handleRefresh);
+  }
+
+  // Set up update status listener
+  window.api.onUpdateStatus((message) => {
+    updateStatusMessage(message);
+  });
+  
+  // Set up check for updates button
+  const checkUpdatesBtn = DOM_ELEMENTS.checkUpdatesBtn();
+  if (checkUpdatesBtn) {
+    checkUpdatesBtn.addEventListener('click', async () => {
+      updateStatusMessage('Checking for updates...');
+      try {
+        const result = await window.api.checkForUpdates();
+        if (!result.success) {
+          updateStatusMessage(result.message || 'Failed to check for updates');
+        }
+      } catch (error) {
+        updateStatusMessage(`Error checking for updates: ${error.message}`);
+      }
+    });
   }
 });
 
