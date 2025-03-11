@@ -1,25 +1,31 @@
 #!/bin/bash
 
-# Load Apple signing credentials
-export APPLE_ID="losnoth@hotmail.com" 
-export APPLE_APP_SPECIFIC_PASSWORD="jzhx-qzvl-heex-dpnp" 
-export APPLE_TEAM_ID="K7GGZ8W679" 
-export CSC_LINK="~/certificate.p12" 
-export CSC_KEY_PASSWORD="1234Poiu?" 
+# This script publishes updates to S3
+# It loads credentials from the .env file in the project root
 
-# Load AWS credentials for S3 publishing
-# Option 1: Set credentials directly in this script (not recommended for security)
-# export AWS_ACCESS_KEY_ID="your-access-key"
-# export AWS_SECRET_ACCESS_KEY="your-secret-key"
+# Load environment variables from .env file
+if [ -f ".env" ]; then
+  echo "Loading credentials from .env file..."
+  export $(grep -v '^#' .env | xargs)
+else
+  echo "Error: .env file not found in the project root."
+  echo "Please create a .env file with the required credentials."
+  exit 1
+fi
 
-# Option 2: Use AWS CLI profile (recommended)
-# export AWS_PROFILE="your-profile-name"
+# Check if required environment variables are set
+if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ] || 
+   [ -z "$CSC_LINK" ] || [ -z "$CSC_KEY_PASSWORD" ]; then
+  echo "Error: Required environment variables for Apple signing are not set in .env file."
+  echo "Please add APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID, CSC_LINK, and CSC_KEY_PASSWORD to your .env file."
+  exit 1
+fi
 
-# Make sure you have the correct region set
-export AWS_REGION="ca-central-1"  # Should match your immcopilot bucket's region
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_REGION" ]; then
+  echo "Error: Required environment variables for AWS are not set in .env file."
+  echo "Please add AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION to your .env file."
+  exit 1
+fi
 
-# Increment version (optional)
-# npm version patch
-
-# Build and publish
+echo "Building and publishing update..."
 npm run publish-update 

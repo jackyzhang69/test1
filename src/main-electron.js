@@ -50,9 +50,9 @@ autoUpdater.autoInstallOnAppQuit = true;
 // This is useful if you're using CloudFront or a custom domain
 // autoUpdater.setFeedURL({
 //   provider: 's3',
-//   bucket: 'immcopilot',
-//   path: 'formbro-updates',
-//   region: 'us-east-1'
+//   bucket: 'formbro-updates',
+//   path: '',
+//   region: 'ca-central-1'
 // });
 
 // If using a generic server with a self-signed certificate, uncomment this line

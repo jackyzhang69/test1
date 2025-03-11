@@ -56,8 +56,9 @@
     "publish": [
       {
         "provider": "s3",
-        "bucket": "immcopilot",
-        "region": "ca-central-1"
+        "bucket": "formbro-updates",
+        "region": "ca-central-1",
+        "path": ""
       }
     ],
     "mac": {
