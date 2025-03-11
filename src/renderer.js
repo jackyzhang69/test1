@@ -145,6 +145,23 @@ function updateStatusMessage(message) {
   const updateStatus = DOM_ELEMENTS.updateStatus();
   if (updateStatus) {
     updateStatus.textContent = message;
+    
+    // Show restart button if update is downloaded
+    if (message.includes('Update downloaded')) {
+      const checkUpdatesBtn = DOM_ELEMENTS.checkUpdatesBtn();
+      if (checkUpdatesBtn) {
+        checkUpdatesBtn.textContent = 'Restart Now';
+        checkUpdatesBtn.innerHTML = '<i class="fas fa-sync"></i> Restart Now';
+        checkUpdatesBtn.classList.add('primary-button');
+        checkUpdatesBtn.classList.remove('secondary-button');
+        checkUpdatesBtn.style.fontWeight = 'bold';
+        checkUpdatesBtn.onclick = () => {
+          if (confirm('Install update and restart now?')) {
+            window.api.exitApp();
+          }
+        };
+      }
+    }
   }
 }
 

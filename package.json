@@ -1,6 +1,6 @@
 {
   "name": "formbro",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "src/main-electron.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -25,6 +25,7 @@
     "@playwright/test": "^1.42.1",
     "aws-sdk": "^2.1692.0",
     "dotenv": "^16.3.1",
+    "electron-log": "^5.3.2",
     "electron-updater": "^6.3.9",
     "mongodb": "^6.3.0",
     "pbkdf2": "^3.1.2",
@@ -58,18 +59,28 @@
         "provider": "s3",
         "bucket": "formbro-updates",
         "region": "ca-central-1",
-        "path": ""
+        "path": "",
+        "acl": null
       }
     ],
     "mac": {
       "artifactName": "FormBro-${arch}.${ext}",
-      "target": {
-        "target": "dmg",
-        "arch": [
-          "arm64",
-          "x64"
-        ]
-      },
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,

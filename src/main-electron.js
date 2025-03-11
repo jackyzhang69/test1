@@ -25,12 +25,18 @@ console.log('Current directory:', __dirname);
 // 将 mainWindow 声明为全局变量
 let mainWindow = null;
 let db;
+let updateDownloaded = false; // Track if an update has been downloaded
 
 // Configure auto-updater
 autoUpdater.logger = require('electron-log');
-autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.logger.transports.file.level = 'debug';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+
+// Specify the preferred update file format
+autoUpdater.allowPrerelease = false;
+autoUpdater.allowDowngrade = false;
+autoUpdater.forceDevUpdateConfig = false;
 
 // NOTE: The update files in S3 must be publicly accessible
 // The bucket policy should allow public read access to the formbro-updates folder:
@@ -160,7 +166,9 @@ app.whenReady().then(async () => {
     console.log('Window created successfully');
     
     // Check for updates after window is created
-    checkForUpdates();
+    setTimeout(() => {
+      checkForUpdates();
+    }, 3000); // Delay update check by 3 seconds to ensure window is fully loaded
     
     // Set up a timer to check for updates periodically (every hour)
     setInterval(checkForUpdates, 60 * 60 * 1000);
@@ -177,6 +185,13 @@ app.on('window-all-closed', () => {
   console.log('All windows closed');
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+// Add handler for before-quit event
+app.on('before-quit', () => {
+  if (updateDownloaded) {
+    autoUpdater.quitAndInstall(false, true);
   }
 });
 
@@ -326,7 +341,12 @@ ipcMain.handle('delete-form-data', async (event, id) => {
 
 // 添加新的 IPC 处理程序
 ipcMain.handle('exit-app', () => {
-  app.quit();
+  // If an update is downloaded, quit and install
+  if (updateDownloaded) {
+    autoUpdater.quitAndInstall(false, true);
+  } else {
+    app.quit();
+  }
 });
 
 // Function to check for updates
@@ -366,7 +386,13 @@ autoUpdater.on('error', (err) => {
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-  const message = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+  // Format the progress display
+  const percent = Math.round(progressObj.percent * 10) / 10; // Round to 1 decimal place
+  const transferred = (progressObj.transferred / 1048576).toFixed(2); // Convert to MB with 2 decimal places
+  const total = (progressObj.total / 1048576).toFixed(2); // Convert to MB with 2 decimal places
+  const speed = (progressObj.bytesPerSecond / 1048576).toFixed(2); // Convert to MB/s with 2 decimal places
+  
+  const message = `Downloading: ${percent}% (${transferred} MB / ${total} MB) - ${speed} MB/s`;
   console.log(message);
   if (mainWindow) {
     mainWindow.webContents.send('update-status', message);
@@ -375,8 +401,9 @@ autoUpdater.on('download-progress', (progressObj) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info);
+  updateDownloaded = true; // Set the flag when update is downloaded
   if (mainWindow) {
-    mainWindow.webContents.send('update-status', `Update downloaded. It will be installed on restart.`);
+    mainWindow.webContents.send('update-status', `Update downloaded. Restart now to install version ${info.version}.`);
   }
 });
 
