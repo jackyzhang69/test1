@@ -122,7 +122,11 @@ async function createWindow() {
     mainWindow.focus();
     console.log('Window is now shown and focused.');
 
-    
+    // Set up context bridge to expose version information
+    mainWindow.webContents.on('did-finish-load', () => {
+      const version = app.getVersion();
+      mainWindow.webContents.executeJavaScript(`window.appVersion = "${version}";`);
+    });
   } catch (error) {
     logError(error);
     throw error;
@@ -405,6 +409,11 @@ autoUpdater.on('update-downloaded', (info) => {
   if (mainWindow) {
     mainWindow.webContents.send('update-status', `Update downloaded. Restart now to install version ${info.version}.`);
   }
+});
+
+// Handle IPC for getting app version
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
 });
 
 module.exports = { createWindow, initMongoDB }; 

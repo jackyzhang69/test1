@@ -15,4 +15,16 @@ contextBridge.exposeInMainWorld('api', {
   // Add update-related events
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   onUpdateStatus: (callback) => ipcRenderer.on('update-status', (_, message) => callback(message))
-}); 
+});
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld(
+  'electron',
+  {
+    appInfo: {
+      getVersion: () => ipcRenderer.invoke('get-app-version')
+    },
+    // Add any other API methods you need to expose here
+  }
+); 

@@ -166,7 +166,19 @@ function updateStatusMessage(message) {
 }
 
 // 初始化
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Update version info from package.json using contextBridge
+  const versionInfoElement = document.querySelector('.version-info');
+  if (versionInfoElement && window.electron) {
+    try {
+      const version = await window.electron.appInfo.getVersion();
+      versionInfoElement.textContent = `Version ${version}`;
+    } catch (error) {
+      console.error('Failed to get app version:', error);
+      versionInfoElement.textContent = 'Version unknown';
+    }
+  }
+  
   // 设置事件监听器
   DOM_ELEMENTS.loginForm()?.addEventListener('submit', handleLogin);
   
