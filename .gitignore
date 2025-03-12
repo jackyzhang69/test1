@@ -206,4 +206,3 @@ external-bin/
 journal.md
 
 .local-chromium/
-.env.template

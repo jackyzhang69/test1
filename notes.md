@@ -39,21 +39,102 @@
 ```json
 {
   "build": {
+    "appId": "com.watchpup.frombro",
+    "productName": "FormBro",
     "files": [
       "src/**/*",
       "package.json",
       ".env",
-      "node_modules/@playwright/test/",
+      "node_modules/@playwright/test/"
+    ],
+    "extraResources": [
       {
-        "from": ".cache/ms-playwright", // Playwright 浏览器缓存位置
-        "to": "ms-playwright", // 打包后的位置
-        "filter": [
-          "chromium-*/**/*" // 只包含 Chromium 相关文件
-        ]
+        "from": ".env",
+        "to": ".env"
       }
     ],
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "s3",
+        "bucket": "formbro-updates",
+        "region": "ca-central-1",
+        "path": "",
+        "acl": null
+      }
+    ],
+    "mac": {
+      "artifactName": "FormBro-${arch}.${ext}",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "executableName": "FormBro",
+      "timestamp": "http://timestamp.apple.com/ts01",
+      "icon": "build/icon.icns",
+      "notarize": {
+        "teamId": "K7GGZ8W679"
+      },
+      "extraFiles": [
+        {
+          "from": ".local-chromium",
+          "to": "resources/app.asar.unpacked/ms-playwright",
+          "filter": [
+            "chromium-*/**/*",
+            "ffmpeg-*/**/*"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "artifactName": "FormBro Setup.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "extraFiles": [
+        {
+          "from": ".local-chromium",
+          "to": "resources/app.asar.unpacked/ms-playwright",
+          "filter": [
+            "chromium-*/**/*",
+            "ffmpeg-*/**/*"
+          ]
+        }
+      ]
+    },
+    "asar": true,
     "asarUnpack": [
-      // 这些文件不会被打包进 asar
       "node_modules/@playwright/test/**/*",
       "ms-playwright/**/*"
     ]
@@ -61,15 +142,72 @@
 }
 ```
 
+关键配置说明：
+
+1. `files`: 指定要包含在应用中的文件
+2. `extraResources`: 指定要复制到应用资源目录的文件
+3. `publish`: 配置自动更新发布的目标位置（S3 存储桶）
+4. `mac` 和 `win`: 平台特定的配置
+5. `extraFiles`: 指定要复制到应用的额外文件（如 Chromium）
+6. `asarUnpack`: 指定不打包进 asar 的文件（如 Playwright 浏览器）
+
 ## 4. 构建步骤
+
+### 4.1 基本构建
 
 ```bash
 # 1. 安装依赖并下载 Playwright Chromium
 npm install
 
-# 2. 构建应用
-npm run dist
+# 2. 准备 Chromium (必要步骤)
+npm run prepare-chromium
+
+# 3. 构建应用 (不发布更新)
+npm run package  # 等同于 npm run prepare-chromium && electron-builder build --publish never
 ```
+
+### 4.2 构建并发布更新
+
+#### macOS 构建与发布
+
+```bash
+# 使用脚本发布 macOS 版本 (推荐方式)
+./build/publish-update.sh
+
+# 或者直接使用 npm 命令
+npm run publish-update  # 等同于 npm run prepare-chromium && electron-builder build --publish always
+```
+
+#### Windows 构建与发布
+
+```bash
+# Windows 版本发布
+npm run publish-update-win  # 等同于 npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always
+```
+
+### 4.3 仅构建不发布
+
+```bash
+# 仅构建 macOS 版本
+npm run dist-mac  # 等同于 npm run prepare-chromium && electron-builder --mac
+
+# 仅构建 Windows 版本
+npm run dist-win  # 等同于 npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win
+```
+
+### 4.4 发布流程说明
+
+1. **macOS 发布流程**:
+   - `./build/publish-update.sh` 脚本会处理证书、环境变量和构建过程
+   - 构建完成后会自动上传到配置的 S3 存储桶
+   - 应用会通过 electron-updater 检查并下载更新
+
+2. **Windows 发布流程**:
+   - `npm run publish-update-win` 会跳过证书自动发现
+   - 构建完成后会自动上传到配置的 S3 存储桶
+   - 应用会通过 electron-updater 检查并下载更新
+
+> **注意**: 发布前请确保已正确配置 AWS S3 凭证和 electron-builder 的 publish 配置。
 
 ## 5. 注意事项
 
@@ -219,10 +357,13 @@ const userDataPath = path.join(app.getPath("userData"), "data");
     "postinstall": "npx playwright install chromium",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "dist-win": "npm run prepare-chromium && electron-builder --win",
+    "dist-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
+    "dist-mac": "npm run prepare-chromium && electron-builder --mac",
     "prebuild": "npx playwright install chromium",
     "prepare-chromium": "node scripts/prepare-chromium.js",
-    "package": "electron-builder build --publish never"
+    "package": "npm run prepare-chromium && electron-builder build --publish never",
+    "publish-update": "npm run prepare-chromium && electron-builder build --publish always",
+    "publish-update-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always"
   }
 }
 ```
@@ -234,7 +375,11 @@ const userDataPath = path.join(app.getPath("userData"), "data");
 - `pack`: 打包到目录
 - `dist`: 构建分发包
 - `dist-win`: Windows 专用构建脚本
+- `dist-mac`: macOS 专用构建脚本
 - `prepare-chromium`: 准备 Chromium 相关文件
+- `package`: 构建应用但不发布更新
+- `publish-update`: 构建并发布更新到配置的服务器
+- `publish-update-win`: Windows 专用构建并发布更新脚本
 
 ### 9.3 Electron Builder 配置
 
@@ -260,6 +405,15 @@ const userDataPath = path.join(app.getPath("userData"), "data");
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "s3",
+        "bucket": "your-bucket-name",
+        "region": "your-s3-region",
+        "path": "",
+        "acl": null
+      }
+    ],
     "mac": {
       "target": {
         "target": "dmg",
@@ -526,9 +680,13 @@ APPLE_TEAM_ID=XXXXXXXXXX
 # 证书信息
 CSC_LINK=/absolute/path/to/certificate.p12
 CSC_KEY_PASSWORD=your-certificate-password
+
+# AWS S3 配置 (用于发布更新)
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
 ```
 
-2. 推荐的签名脚本 (build/sign-mac.sh)：
+2. 发布更新脚本 (build/publish-update.sh)：
 
 ```bash
 #!/bin/bash
@@ -551,54 +709,55 @@ if [ ! -f "$CSC_LINK" ]; then
     exit 1
 fi
 
+# 验证 AWS 凭证
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+    echo "Error: Missing AWS credentials"
+    exit 1
+fi
+
 # 导出环境变量
 export APPLE_ID
 export APPLE_APP_SPECIFIC_PASSWORD
 export APPLE_TEAM_ID
 export CSC_LINK
 export CSC_KEY_PASSWORD
+export AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY
 
-# 运行打包命令
-echo "Starting package process..."
-npm run package
+# 运行发布命令
+echo "Starting publish process..."
+npm run publish-update
 
-# 验证签名
-echo "Verifying signature..."
-codesign -v --verify --verbose "dist/mac/YourApp.app"
-
-# 验证公证
-echo "Verifying notarization..."
-spctl --assess -v "dist/mac/YourApp.app"
-
-echo "Package process completed successfully"
+echo "Publish process completed successfully"
 ```
 
-### 10.4 签名流程
+### 10.4 发布流程
 
 1. 准备工作：
 
    ```bash
    # 添加脚本执行权限
-   chmod +x build/sign-mac.sh
+   chmod +x build/publish-update.sh
 
    # 确保环境变量文件存在
    touch .env
    ```
 
-2. 执行签名：
+2. 执行发布：
 
    ```bash
-   ./build/sign-mac.sh
+   # macOS 发布
+   ./build/publish-update.sh
+   
+   # Windows 发布
+   npm run publish-update-win
    ```
 
-3. 验证步骤：
+3. 验证发布：
 
    ```bash
-   # 验证应用签名
-   codesign -v --verify --verbose "dist/mac/YourApp.app"
-
-   # 验证公证状态
-   spctl --assess -v "dist/mac/YourApp.app"
+   # 检查 S3 存储桶中是否有新版本
+   aws s3 ls s3://your-bucket-name/ --recursive
    ```
 
 ### 10.5 常见问题和解决方案
