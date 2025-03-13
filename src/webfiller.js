@@ -28,6 +28,7 @@ class PwEngine {
     this.context = context;  // dictionary-like object
     this.exhandler = exhandler;
     this.screenshotDir = process.cwd(); // Default value, will be overridden
+    this.timeout = 30000; // Default timeout of 30 seconds in milliseconds
   }
 
   /**
@@ -399,8 +400,13 @@ class PwEngine {
   }
 
   async wait(selector, option, data) {
-    // 使用配置的超时时间
-    await expect(await this._element(selector)).toBeVisible({ timeout: this.timeout });
+    try {
+      await expect(await this._element(selector)).toBeVisible({ timeout: this.timeout });
+      console.log(`Element "${selector}" found`);
+    } catch (error) {
+      console.error(`Timeout waiting for element "${selector}" after ${this.timeout/1000}s`);
+      throw error;
+    }
   }
 
   async batch_click(selector, option, data) {
@@ -449,12 +455,14 @@ class PwEngine {
   async act(action, selector, option, data) {
     const actions = this.actionsMap();
     if (actions[action]) {
-      console.log(`Action: ${action}, Selector: ${selector}, Option: ${option}, Data: ${data}`);
+      // Simplify action logging
+      console.log(`${action}: ${selector}`);
+      
       if (option && option.includes('skip_disabled')) {
         const locator = await this._element(selector);
         const disabled = await locator.isDisabled();
         if (disabled) {
-          console.log(`>> Skip disabled element: ${selector}`);
+          console.log(`Skipping disabled element: ${selector}`);
           return;
         }
       }
@@ -463,7 +471,7 @@ class PwEngine {
         const locator = await this._element(selector);
         const count = await locator.count();
         if (count === 0) {
-          console.log(`>> Skip nonexist element: ${selector}`);
+          console.log(`Skipping nonexistent element: ${selector}`);
           return;
         }
       }
@@ -480,7 +488,7 @@ class PwEngine {
         );
       }
       if (option === 'post_pause') {
-        console.log('>> Post pause for 2 seconds...');
+        console.log('Pausing for 2 seconds...');
         await sleep(2);
       }
     } else {
@@ -494,6 +502,9 @@ class PwEngine {
 // -------------------------------------------------------------------
 class WebFiller {
   constructor(formData, fetch_func, validate_func, debug, logger, timeout, screenshotDir) {
+    // Keep only essential logging for timeout
+    console.log('WebFiller timeout setting:', timeout, 'seconds');
+    
     this.fillergraph = formData;
     this.fetch_func = fetch_func;
     this.invalid_fields = [];
@@ -503,23 +514,35 @@ class WebFiller {
     this.logger = logger;
     this.cursor = 0;
     this.context = {};
-    this.timeout = timeout * 1000; // 转换为毫秒
+    
+    // Check if timeout is a number and convert it if it's a string
+    if (typeof timeout === 'string') {
+      this.timeout = parseInt(timeout, 10) * 1000; // Convert seconds to milliseconds
+    } else if (typeof timeout === 'number') {
+      this.timeout = timeout * 1000; // Convert seconds to milliseconds
+    } else {
+      // Default timeout if none provided or invalid
+      this.timeout = 30000; // 30 seconds in milliseconds
+      console.log('Using default timeout of 30 seconds');
+    }
+    
     this.screenshotDir = screenshotDir || process.cwd(); // Use provided dir or fallback to cwd
   }
 
   async fill(page) {
     const pwfiller = new PwEngine(page, this.context);
+    // Pass the timeout value to the PwEngine instance
+    pwfiller.timeout = this.timeout;
+    console.log('Using timeout value:', this.timeout / 1000, 'seconds');
     pwfiller.screenshotDir = this.screenshotDir;
     
     let index = 0;
     const steps = this.actions.length;
     
-    console.log('Debug: Total steps:', steps);
-    console.log('Debug: All actions:', JSON.stringify(this.actions, null, 2));
+    console.log('Total steps to execute:', steps);
     
     while (index < steps) {
       const item = this.actions[index];
-      console.log('Debug: Current action item:', JSON.stringify(item, null, 2));
       
       const [name, action, selector, option, data] = item;
       
@@ -534,20 +557,17 @@ class WebFiller {
         }
       };
       
-      console.log('Debug: Sending log message:', JSON.stringify(logMessage, null, 2));
       this.logger(logMessage);
 
       try {
-        console.log(`Debug: Executing action: ${action} with selector: ${selector}`);
         await pwfiller.act(action, selector, option, data);
         
         const nodeName = pwfiller.context.goto;
         if (nodeName) {
-          console.log('Debug: Found goto:', nodeName);
           for (let i = 0; i < this.actions.length; i++) {
             if (this.actions[i][0].toLowerCase() === nodeName.toLowerCase()) {
               index = i;
-              console.log(`Debug: Jumping to node at index ${i}: ${nodeName}`);
+              console.log(`Jumping to node: ${nodeName}`);
               delete pwfiller.context.goto;
               break;
             }
@@ -556,7 +576,7 @@ class WebFiller {
           index++;
         }
       } catch (error) {
-        console.error('Debug: Action execution error:', error);
+        console.error('Action execution error:', error.message);
         const errorMessage = {
           message: {
             error: error.message,
@@ -568,7 +588,6 @@ class WebFiller {
           progress: Math.round((index * 100) / steps)
         };
         
-        console.log('Debug: Sending error message:', JSON.stringify(errorMessage, null, 2));
         this.logger(errorMessage);
         throw error;
       }
@@ -581,10 +600,16 @@ class WebFiller {
         success: true
       }
     };
-    console.log('Debug: Sending complete message:', JSON.stringify(completeMessage, null, 2));
     this.logger(completeMessage);
 
     return pwfiller.context.summary_url;
+  }
+
+  // Also add logging to a method that uses the timeout
+  async waitForElement(selector) {
+    console.log(`Waiting for element "${selector}" with timeout: ${this.timeout}ms`);
+    await expect(await this._element(selector)).toBeVisible({ timeout: this.timeout });
+    console.log(`Element "${selector}" found within timeout`);
   }
 }
 
