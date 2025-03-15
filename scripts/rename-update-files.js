@@ -14,15 +14,17 @@ if (platform !== 'mac' || !arch) {
 
 const distDir = path.join(__dirname, '../dist');
 const sourceFile = path.join(distDir, 'latest-mac.yml');
-const targetFile = path.join(distDir, `latest-mac-${arch}.yml`);
+const targetFileName = `latest-mac-${arch}.yml`;
+const targetFile = path.join(distDir, targetFileName);
 
 // Create a copy of the file with the new name
 if (fs.existsSync(sourceFile)) {
+  // Simply copy the file without modifying its content
   fs.copyFileSync(sourceFile, targetFile);
   console.log(`Created copy of ${sourceFile} as ${targetFile}`);
   
   // Upload the file to S3
-  uploadToS3(targetFile, `latest-mac-${arch}.yml`).catch(err => {
+  uploadToS3(targetFile, targetFileName).catch(err => {
     console.error('Error uploading to S3:', err);
     process.exit(1);
   });

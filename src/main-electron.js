@@ -13,6 +13,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const { loadEnvConfig } = require('./config');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 
 // Load environment variables before anything else
 loadEnvConfig();
@@ -28,8 +29,8 @@ let db;
 let updateDownloaded = false; // Track if an update has been downloaded
 
 // Configure auto-updater
-autoUpdater.logger = require('electron-log');
-autoUpdater.logger.transports.file.level = 'debug';
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
@@ -38,13 +39,23 @@ autoUpdater.allowPrerelease = false;
 autoUpdater.allowDowngrade = false;
 autoUpdater.forceDevUpdateConfig = false;
 
-// Configure the updater to use the correct update file based on architecture (Mac only)
-if (process.platform === 'darwin') { // macOS
-  autoUpdater.updateConfigPath = process.arch === 'arm64' 
+// Instead of using channels, set the feed URL directly
+if (process.platform === 'darwin') {
+  const updateFile = process.arch === 'arm64' 
     ? 'latest-mac-arm64.yml' 
     : 'latest-mac-x64.yml';
+  
+  autoUpdater.setFeedURL({
+    provider: 's3',
+    bucket: 'formbro-updates',
+    path: '',
+    region: 'ca-central-1',
+    updaterCacheDirName: 'formbro-updater',
+    url: `https://formbro-updates.s3.ca-central-1.amazonaws.com/${updateFile}`
+  });
+  
+  log.info(`Setting update URL to use ${updateFile}`);
 }
-// For Windows, use the default update file name (latest.yml)
 
 // NOTE: The update files in S3 must be publicly accessible
 // The bucket policy should allow public read access to the formbro-updates folder:
