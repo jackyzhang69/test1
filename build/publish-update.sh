@@ -3,14 +3,44 @@
 # This script publishes updates to S3
 # It loads credentials from the .env file in the project root
 
+# Determine which Mac architectures to build based on arguments
+BUILD_MAC_X64=false
+BUILD_MAC_ARM64=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --x64)
+      BUILD_MAC_X64=true
+      shift
+      ;;
+    --arm64)
+      BUILD_MAC_ARM64=true
+      shift
+      ;;
+    --all)
+      BUILD_MAC_X64=true
+      BUILD_MAC_ARM64=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--x64] [--arm64] [--all]"
+      exit 1
+      ;;
+  esac
+done
+
+# If no architecture specified, build all
+if [ "$BUILD_MAC_X64" = false ] && [ "$BUILD_MAC_ARM64" = false ]; then
+  BUILD_MAC_X64=true
+  BUILD_MAC_ARM64=true
+fi
+
 # Load environment variables from .env file
-if [ -f ".env" ]; then
-  echo "Loading credentials from .env file..."
-  export $(grep -v '^#' .env | xargs)
-else
-  echo "Error: .env file not found in the project root."
-  echo "Please create a .env file with the required credentials."
-  exit 1
+echo "Loading credentials from .env file..."
+if [ -f .env ]; then
+  export $(cat .env | grep -v '^#' | xargs)
 fi
 
 # Check if required environment variables are set
@@ -27,48 +57,14 @@ if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_
   exit 1
 fi
 
-# Determine which architectures to build based on arguments
-BUILD_X64=false
-BUILD_ARM64=false
-
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --x64)
-      BUILD_X64=true
-      shift
-      ;;
-    --arm64)
-      BUILD_ARM64=true
-      shift
-      ;;
-    --all)
-      BUILD_X64=true
-      BUILD_ARM64=true
-      shift
-      ;;
-    *)
-      echo "Unknown option: $1"
-      echo "Usage: $0 [--x64] [--arm64] [--all]"
-      exit 1
-      ;;
-  esac
-done
-
-# If no architecture specified, build all
-if [ "$BUILD_X64" = false ] && [ "$BUILD_ARM64" = false ]; then
-  BUILD_X64=true
-  BUILD_ARM64=true
-fi
-
-# Build and publish for specified architectures
-if [ "$BUILD_X64" = true ]; then
-  echo "Building and publishing for x64 architecture..."
+# Build and publish for specified Mac architectures
+if [ "$BUILD_MAC_X64" = true ]; then
+  echo "Building and publishing for macOS x64..."
   npm run publish-update-mac-x64
 fi
 
-if [ "$BUILD_ARM64" = true ]; then
-  echo "Building and publishing for arm64 architecture..."
+if [ "$BUILD_MAC_ARM64" = true ]; then
+  echo "Building and publishing for macOS arm64..."
   npm run publish-update-mac-arm64
 fi
 

@@ -38,6 +38,14 @@ autoUpdater.allowPrerelease = false;
 autoUpdater.allowDowngrade = false;
 autoUpdater.forceDevUpdateConfig = false;
 
+// Configure the updater to use the correct update file based on architecture (Mac only)
+if (process.platform === 'darwin') { // macOS
+  autoUpdater.updateConfigPath = process.arch === 'arm64' 
+    ? 'latest-mac-arm64.yml' 
+    : 'latest-mac-x64.yml';
+}
+// For Windows, use the default update file name (latest.yml)
+
 // NOTE: The update files in S3 must be publicly accessible
 // The bucket policy should allow public read access to the formbro-updates folder:
 // {

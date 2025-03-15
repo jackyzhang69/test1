@@ -17,8 +17,8 @@
     "package": "npm run prepare-chromium && electron-builder build --publish never",
     "publish-update": "npm run prepare-chromium && electron-builder build --publish always",
     "publish-update-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always",
-    "publish-update-mac-x64": "npm run prepare-chromium && electron-builder build --mac --x64 --publish always",
-    "publish-update-mac-arm64": "npm run prepare-chromium && electron-builder build --mac --arm64 --publish always"
+    "publish-update-mac-x64": "npm run prepare-chromium && electron-builder build --mac --x64 --publish always && node scripts/rename-update-files.js mac x64",
+    "publish-update-mac-arm64": "npm run prepare-chromium && electron-builder build --mac --arm64 --publish always && node scripts/rename-update-files.js mac arm64"
   },
   "keywords": [],
   "author": "",
