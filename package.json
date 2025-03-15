@@ -10,11 +10,15 @@
     "dist": "electron-builder",
     "dist-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
     "dist-mac": "npm run prepare-chromium && electron-builder --mac",
+    "dist-mac-x64": "npm run prepare-chromium && electron-builder --mac --x64",
+    "dist-mac-arm64": "npm run prepare-chromium && electron-builder --mac --arm64",
     "prebuild": "npx playwright install chromium",
     "prepare-chromium": "node scripts/prepare-chromium.js",
     "package": "npm run prepare-chromium && electron-builder build --publish never",
     "publish-update": "npm run prepare-chromium && electron-builder build --publish always",
-    "publish-update-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always"
+    "publish-update-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always",
+    "publish-update-mac-x64": "npm run prepare-chromium && electron-builder build --mac --x64 --publish always",
+    "publish-update-mac-arm64": "npm run prepare-chromium && electron-builder build --mac --arm64 --publish always"
   },
   "keywords": [],
   "author": "",
@@ -68,18 +72,10 @@
       "artifactName": "FormBro-${arch}.${ext}",
       "target": [
         {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
+          "target": "dmg"
         },
         {
-          "target": "zip",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
+          "target": "zip"
         }
       ],
       "category": "public.app-category.utilities",

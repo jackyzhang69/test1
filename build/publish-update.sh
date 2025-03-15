@@ -27,5 +27,49 @@ if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_
   exit 1
 fi
 
-echo "Building and publishing update..."
-npm run publish-update 
+# Determine which architectures to build based on arguments
+BUILD_X64=false
+BUILD_ARM64=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --x64)
+      BUILD_X64=true
+      shift
+      ;;
+    --arm64)
+      BUILD_ARM64=true
+      shift
+      ;;
+    --all)
+      BUILD_X64=true
+      BUILD_ARM64=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--x64] [--arm64] [--all]"
+      exit 1
+      ;;
+  esac
+done
+
+# If no architecture specified, build all
+if [ "$BUILD_X64" = false ] && [ "$BUILD_ARM64" = false ]; then
+  BUILD_X64=true
+  BUILD_ARM64=true
+fi
+
+# Build and publish for specified architectures
+if [ "$BUILD_X64" = true ]; then
+  echo "Building and publishing for x64 architecture..."
+  npm run publish-update-mac-x64
+fi
+
+if [ "$BUILD_ARM64" = true ]; then
+  echo "Building and publishing for arm64 architecture..."
+  npm run publish-update-mac-arm64
+fi
+
+echo "Publishing complete!" 
