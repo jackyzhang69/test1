@@ -666,3 +666,6 @@ echo "Package process completed successfully"
    - 更新签名流程文档
    - 记录问题和解决方案
    - 维护证书信息
+
+2025-03-15 Yansong:
+需要 build 的时候，test1 根目录先同步代码，npm install，然后运行 `./build/publish-update.sh --arm64`
