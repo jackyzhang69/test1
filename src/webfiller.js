@@ -100,13 +100,15 @@ class PwEngine {
     const trimmed = getByString.trim(); // e.g. get_by_role('button', name='Edit IMM 5562')
 
     // Find the method: e.g. 'role'
-    const methodMatch = trimmed.match(/^get_by_(\w+)\((.*)\)/);
+    // Updated regex to only capture up to the first closing parenthesis
+    const methodMatch = trimmed.match(/^get_by_(\w+)\(([^)]+)\)(.*)/);
     if (!methodMatch) {
       // fallback
       return this.page.locator(trimmed);
     }
     const method = methodMatch[1]; // "role"
     const innerArgs = methodMatch[2]; // "'button', name='Edit IMM 5562'"
+    const chainedOps = methodMatch[3]; // ".nth(0)" or empty string
 
     // Quick parse of innerArgs. We must handle quotes, etc. We'll do a naive approach:
     // If it starts with e.g. "'button', name='something'"
@@ -131,20 +133,38 @@ class PwEngine {
       }
     }
 
+    let result;
     switch (method) {
       case 'role':
         // page.getByRole(mainValue, options)
-        return this.page.getByRole(mainValue, options);
+        result = this.page.getByRole(mainValue, options);
+        break;
       case 'text':
         // page.getByText('some text', options)
-        return this.page.getByText(mainValue, options);
+        result = this.page.getByText(mainValue, options);
+        break;
       case 'label':
-        return this.page.getByLabel(mainValue, options);
+        result = this.page.getByLabel(mainValue, options);
+        break;
       // etc. Extend if needed
       default:
         // fallback
-        return this.page.locator(trimmed);
+        result = this.page.locator(trimmed);
     }
+
+    // Handle chained operations
+    if (chainedOps) {
+      // Extract the operation and its argument
+      const opMatch = chainedOps.match(/\.(\w+)\((\d+)\)/);
+      if (opMatch) {
+        const [_, op, arg] = opMatch;
+        if (op === 'nth') {
+          result = result.nth(parseInt(arg));
+        }
+      }
+    }
+
+    return result;
   }
 
   // --------------------------------------------------
@@ -626,7 +646,180 @@ class FillerGraph {
   }
 }
 
-// 同时导出 FillerGraph 和别名 WebFiller
+// Test function for PwEngine._element method
+async function testElementMethod() {
+  // Store actual method calls for verification
+  const actualCalls = {
+    locator: [],
+    getByRole: [],
+    getByText: [],
+    getByLabel: []
+  };
+
+  // Create a simple mock page
+  const mockPage = {
+    locator: (selector) => {
+      actualCalls.locator.push(selector);
+      return { 
+        isVisible: async () => true,
+        nth: (index) => {
+          actualCalls.locator.push(`nth(${index})`);
+          return { isVisible: async () => true };
+        }
+      };
+    },
+    getByRole: (role, options) => {
+      actualCalls.getByRole.push({ role, options });
+      return { 
+        isVisible: async () => true,
+        nth: (index) => {
+          actualCalls.getByRole.push(`nth(${index})`);
+          return { isVisible: async () => true };
+        }
+      };
+    },
+    getByText: (text, options) => {
+      actualCalls.getByText.push({ text, options });
+      return { 
+        isVisible: async () => true,
+        nth: (index) => {
+          actualCalls.getByText.push(`nth(${index})`);
+          return { isVisible: async () => true };
+        }
+      };
+    },
+    getByLabel: (label, options) => {
+      actualCalls.getByLabel.push({ label, options });
+      return { 
+        isVisible: async () => true,
+        nth: (index) => {
+          actualCalls.getByLabel.push(`nth(${index})`);
+          return { isVisible: async () => true };
+        }
+      };
+    }
+  };
+
+  // Create a PwEngine instance
+  const pwEngine = new PwEngine(mockPage, {});
+
+  // Test cases with expected outputs
+  const testCases = [
+    { 
+      name: "Basic CSS selector (from pr.json)", 
+      selector: "#absenceForm-reason0", 
+      data: null,
+      expected: {
+        method: "locator",
+        args: "#absenceForm-reason0"
+      }
+    },
+    { 
+      name: "XPath selector (from pr.json)", 
+      selector: "(//td[@class='absence-table__action']//button)[1]", 
+      data: null,
+      expected: {
+        method: "locator",
+        args: "(//td[@class='absence-table__action']//button)[1]"
+      }
+    },
+    { 
+      name: "get_by_role with chained nth (from pr.json)", 
+      selector: "get_by_role('button', name='Save Table').nth(0)", 
+      data: null,
+      expected: {
+        method: "getByRole",
+        args: [
+          { role: "button", options: { name: "Save Table" } },
+          "nth(0)"
+        ]
+      }
+    },
+    { 
+      name: "Selector with placeholder", 
+      selector: "#user-{}", 
+      data: "12345",
+      expected: {
+        method: "locator",
+        args: "#user-12345"
+      }
+    },
+    { 
+      name: "get_by_role with name", 
+      selector: "get_by_role('button', name='Submit')", 
+      data: null,
+      expected: {
+        method: "getByRole",
+        args: { role: "button", options: { name: "Submit" } }
+      }
+    },
+    { 
+      name: "get_by_text with placeholder", 
+      selector: "get_by_text('Welcome {}')", 
+      data: "User",
+      expected: {
+        method: "getByText",
+        args: { text: "Welcome User", options: {} }
+      }
+    },
+    { 
+      name: "get_by_label with options", 
+      selector: "get_by_label('Username', exact=true)", 
+      data: null,
+      expected: {
+        method: "getByLabel",
+        args: { label: "Username", options: { exact: "true" } }
+      }
+    }
+  ];
+
+  console.log("Testing PwEngine._element method\n");
+  
+  for (const test of testCases) {
+    console.log(`\nTest: ${test.name}`);
+    console.log(`Input: selector="${test.selector}", data=${test.data || 'null'}`);
+    
+    // Clear previous calls
+    Object.keys(actualCalls).forEach(key => actualCalls[key] = []);
+    
+    try {
+      await pwEngine._element(test.selector, test.data);
+      
+      // Get the last call for the expected method
+      const method = test.expected.method;
+      const calls = actualCalls[method];
+      
+      // For chained operations, we need to check multiple calls
+      const isMatch = Array.isArray(test.expected.args) 
+        ? calls.length === test.expected.args.length && 
+          test.expected.args.every((expected, i) => 
+            JSON.stringify(calls[i]) === JSON.stringify(expected)
+          )
+        : method === 'locator' 
+          ? calls[calls.length - 1] === test.expected.args
+          : JSON.stringify(calls[calls.length - 1]) === JSON.stringify(test.expected.args);
+      
+      if (isMatch) {
+        console.log("✅ Success");
+        console.log(`Expected: ${test.expected.method}(${JSON.stringify(test.expected.args)})`);
+        console.log(`Actual: ${test.expected.method}(${JSON.stringify(calls)})`);
+      } else {
+        console.error("❌ Failed");
+        console.log(`Expected: ${test.expected.method}(${JSON.stringify(test.expected.args)})`);
+        console.log(`Actual: ${test.expected.method}(${JSON.stringify(calls)})`);
+      }
+    } catch (error) {
+      console.error("❌ Error:", error.message);
+    }
+  }
+}
+
+// Run tests if this file is executed directly
+if (require.main === module) {
+  testElementMethod().catch(console.error);
+}
+
+// Export the classes
 module.exports = {
   FillerGraph,
   WebFiller,
