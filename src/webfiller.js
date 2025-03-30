@@ -554,6 +554,7 @@ class WebFiller {
     // Pass the timeout value to the PwEngine instance
     pwfiller.timeout = this.timeout;
     console.log('Using timeout value:', this.timeout / 1000, 'seconds');
+    page.setDefaultTimeout(this.timeout);
     pwfiller.screenshotDir = this.screenshotDir;
     
     let index = 0;
