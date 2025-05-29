@@ -363,7 +363,7 @@ ipcMain.handle('fetchJobbankAccounts', async (event, userId) => {
   try {
     if (!db) throw new Error("Database not connected");
     
-    // RCIC collection uses owner_ids array with ObjectId, not user_id like formfillingdata
+    // RCIC collection uses owner_ids array with ObjectId
     const userIdStr = Buffer.from(userId.buffer).toString('hex');
     const userObjectId = new ObjectId(userIdStr);
     

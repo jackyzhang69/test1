@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+      "MongoDB": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mongodb-mcp-server",
+        "--connectionString",
+        "mongodb+srv://jacky:Zxy690211@noah.yi5fo.mongodb.net/?retryWrites=false&w=majority"
+      ]
+    }
+    }
+  }
