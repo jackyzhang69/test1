@@ -1,6 +1,6 @@
 const { chromium } = require('playwright');
 const { Jobbank } = require('./jobbank');
-const s3 = require('./s3');
+const s3 = require('../s3');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 

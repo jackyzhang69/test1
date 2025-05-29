@@ -379,8 +379,8 @@ ipcMain.handle('fetchJobbankAccounts', async (event, userId) => {
 ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationStar, itemsPerPage, headless, timeout) => {
   try {
 
-    const { Jobbank } = require('./jobbank');
-    const { JobbankInviter } = require('./inviter');
+    const { Jobbank } = require('./inviter/jobbank');
+    const { JobbankInviter } = require('./inviter/inviter');
     
     // Convert RCIC data to jobbank format
     const jobbank = new Jobbank();

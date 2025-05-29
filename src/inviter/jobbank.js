@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const { connectMongo } = require('./config');
+const { connectMongo } = require('../config');
 
 const securityQuestions = [
     "What is the name of your first pet?",
