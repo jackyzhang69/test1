@@ -252,18 +252,14 @@ ipcMain.handle('check-for-updates', async () => {
 });
 
 ipcMain.handle('fetchFormData', async (event, userId) => {
-  console.log('Raw userId:', userId);
   try {
     if (!db) throw new Error("Database not connected");
     
     // 修复：直接使用 buffer 属性
     const userIdStr = Buffer.from(userId.buffer).toString('hex');
-    console.log('Converted userId:', userIdStr);
     
     const formFillingData = await db.collection('formfillingdata')
       .find({ user_id: userIdStr }).toArray();
-    
-    console.log('Found data:', formFillingData);
     return { success: true, data: formFillingData };
   } catch (error) {
     console.error('Error in fetchFormData:', error);
@@ -360,6 +356,109 @@ ipcMain.handle('delete-form-data', async (event, id) => {
         console.error('Error deleting form data:', error);
         throw error;
     }
+});
+
+// Jobbank inviter handlers
+ipcMain.handle('fetchJobbankAccounts', async (event, userId) => {
+  try {
+    if (!db) throw new Error("Database not connected");
+    
+    // RCIC collection uses owner_ids array with ObjectId, not user_id like formfillingdata
+    const userIdStr = Buffer.from(userId.buffer).toString('hex');
+    const userObjectId = new ObjectId(userIdStr);
+    
+    const rcicAccounts = await db.collection('rcic')
+      .find({ owner_ids: userObjectId }).toArray();
+    return { success: true, data: rcicAccounts };
+  } catch (error) {
+    console.error('Error fetching RCIC accounts:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationStar, itemsPerPage, headless, timeout) => {
+  try {
+
+    const { Jobbank } = require('./jobbank');
+    const { JobbankInviter } = require('./inviter');
+    
+    // Convert RCIC data to jobbank format
+    const jobbank = new Jobbank();
+    
+    // Map RCIC fields to jobbank fields
+    if (rcicData.personal_info) {
+      jobbank.personal_info = rcicData.personal_info;
+    } else {
+      // Create personal_info from available fields
+      jobbank.personal_info = {
+        first_name: rcicData.first_name || rcicData.firstName || '',
+        last_name: rcicData.last_name || rcicData.lastName || '',
+        identifier: rcicData.rcic_number || rcicData.rcicNumber || ''
+      };
+    }
+    
+    // Map jobbank portal credentials - LMIA portal IS the jobbank portal
+    jobbank.jobbank_portal = rcicData.lmia_portal || {
+      username: '',
+      password: ''
+    };
+    
+    // Map security questions - LMIA SQA IS the jobbank SQA
+    jobbank.jobbank_sqa = rcicData.lmia_sqa || [];
+    
+    // Map complete
+    
+    // Create logger that sends updates to renderer
+    const logger = (message) => {
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: { action: 'status', name: message }
+      });
+    };
+
+    // Create inviter instance
+    const inviter = new JobbankInviter(jobbank, logger, timeout * 1000);
+    
+    // Set headless mode
+    if (headless) {
+      process.env.environment = 'production';
+    } else {
+      process.env.environment = 'dev';
+    }
+    
+    // Run the inviter
+    const result = await inviter.inviteJobPost(jobPostId, invitationStar, itemsPerPage);
+    
+    // Send final result
+    const finalMessage = {
+      progress: 100,
+      message: {
+        action: 'complete',
+        invited: result.invited,
+        errors: result.errors,
+        completed: result.completed
+      }
+    };
+    
+    mainWindow.webContents.send('inviter-callback-info', finalMessage);
+    
+    return { 
+      success: true, 
+      result: {
+        invited: result.invited,
+        errors: result.errors,
+        completed: result.completed
+      }
+    };
+  } catch (error) {
+    console.error('Jobbank inviter error:', error);
+    mainWindow.webContents.send('inviter-callback-info', {
+      message: { action: 'error', error: error.message }
+    });
+    return { 
+      success: false, 
+      error: error.message 
+    };
+  }
 });
 
 // 添加新的 IPC 处理程序

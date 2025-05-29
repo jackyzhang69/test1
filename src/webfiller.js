@@ -177,7 +177,6 @@ class PwEngine {
     }
     const element = await this._element(selector);
     if (option === 'type') {
-      console.log('typing ...');
       // Python calls press_sequentially; in Node you can do something like:
       for (const ch of data) {
         await element.press(ch, { delay: 100 });
@@ -329,7 +328,6 @@ class PwEngine {
     } else {
       // compare the content with data
       const content = await (await this._element(selector)).innerText();
-      console.log(content);
       if (typeof data === 'string' && content.toLowerCase() === data.toLowerCase()) {
         // Python code sets context["goto"] = option
         this.context.goto = option;
@@ -391,7 +389,6 @@ class PwEngine {
     // find last Edit link
     const editLink = this.page.locator('a:has-text("Edit")').last();
     const editUrl = await editLink.getAttribute('href');
-    console.log('Edit URL: ', editUrl);
 
     // parse out /Employer/{employer_id}/Application/{application_id}/...
     const parts = editUrl.split('/');
@@ -405,7 +402,6 @@ class PwEngine {
       const nextBtn = this.page.locator('#next');
       await sleep(2); // let the page logic update
       const btnDisabled = await nextBtn.isDisabled();
-      console.log(btnDisabled);
       if (btnDisabled) {
         break;
       }
@@ -422,7 +418,6 @@ class PwEngine {
   async wait(selector, option, data) {
     try {
       await expect(await this._element(selector)).toBeVisible({ timeout: this.timeout });
-      console.log(`Element "${selector}" found`);
     } catch (error) {
       console.error(`Timeout waiting for element "${selector}" after ${this.timeout/1000}s`);
       throw error;
@@ -475,14 +470,11 @@ class PwEngine {
   async act(action, selector, option, data) {
     const actions = this.actionsMap();
     if (actions[action]) {
-      // Simplify action logging
-      console.log(`${action}: ${selector}`);
       
       if (option && option.includes('skip_disabled')) {
         const locator = await this._element(selector);
         const disabled = await locator.isDisabled();
         if (disabled) {
-          console.log(`Skipping disabled element: ${selector}`);
           return;
         }
       }
@@ -491,7 +483,6 @@ class PwEngine {
         const locator = await this._element(selector);
         const count = await locator.count();
         if (count === 0) {
-          console.log(`Skipping nonexistent element: ${selector}`);
           return;
         }
       }
@@ -508,7 +499,6 @@ class PwEngine {
         );
       }
       if (option === 'post_pause') {
-        console.log('Pausing for 2 seconds...');
         await sleep(2);
       }
     } else {
@@ -560,7 +550,6 @@ class WebFiller {
     let index = 0;
     const steps = this.actions.length;
     
-    console.log('Total steps to execute:', steps);
     
     while (index < steps) {
       const item = this.actions[index];
@@ -588,7 +577,6 @@ class WebFiller {
           for (let i = 0; i < this.actions.length; i++) {
             if (this.actions[i][0].toLowerCase() === nodeName.toLowerCase()) {
               index = i;
-              console.log(`Jumping to node: ${nodeName}`);
               delete pwfiller.context.goto;
               break;
             }
@@ -643,8 +631,7 @@ class FillerGraph {
 
   // 示例方法，可根据需要扩展
   processData() {
-    console.log("Processing data:", this.data);
-  }
+    }
 }
 
 // Test function for PwEngine._element method
@@ -774,11 +761,8 @@ async function testElementMethod() {
     }
   ];
 
-  console.log("Testing PwEngine._element method\n");
   
   for (const test of testCases) {
-    console.log(`\nTest: ${test.name}`);
-    console.log(`Input: selector="${test.selector}", data=${test.data || 'null'}`);
     
     // Clear previous calls
     Object.keys(actualCalls).forEach(key => actualCalls[key] = []);
@@ -801,16 +785,9 @@ async function testElementMethod() {
           : JSON.stringify(calls[calls.length - 1]) === JSON.stringify(test.expected.args);
       
       if (isMatch) {
-        console.log("✅ Success");
-        console.log(`Expected: ${test.expected.method}(${JSON.stringify(test.expected.args)})`);
-        console.log(`Actual: ${test.expected.method}(${JSON.stringify(calls)})`);
       } else {
-        console.error("❌ Failed");
-        console.log(`Expected: ${test.expected.method}(${JSON.stringify(test.expected.args)})`);
-        console.log(`Actual: ${test.expected.method}(${JSON.stringify(calls)})`);
       }
     } catch (error) {
-      console.error("❌ Error:", error.message);
     }
   }
 }

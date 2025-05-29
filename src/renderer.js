@@ -21,11 +21,23 @@ const DOM_ELEMENTS = {
   refreshButton: () => document.getElementById('refreshButton'),
   updateStatus: () => document.getElementById('update-status'),
   checkUpdatesBtn: () => document.getElementById('check-updates-btn'),
+  // Jobbank inviter elements
+  rcicAccountSelect: () => document.getElementById('rcic-account-select'),
+  jobPostId: () => document.getElementById('job-post-id'),
+  invitationThreshold: () => document.getElementById('invitation-threshold'),
+  inviterTimeout: () => document.getElementById('inviter-timeout'),
+  inviterHeadlessMode: () => document.getElementById('inviterHeadlessMode'),
+  startInviterBtn: () => document.getElementById('startInviterBtn'),
+  refreshRcicBtn: () => document.getElementById('refreshRcicBtn'),
+  exitInviterBtn: () => document.getElementById('exitInviterBtn'),
+  inviterProgressBar: () => document.getElementById('inviterProgressBar'),
+  inviterMessageList: () => document.getElementById('inviterMessageList'),
 };
 
 // 状态管理
 let currentUser = null;
 let formDataList = [];
+let jobbankAccountsList = [];
 
 // UI 更新函数
 function updateProgress(progress) {
@@ -82,6 +94,107 @@ function resetFormFillingDisplay() {
   updateProgress(0);
 }
 
+// Jobbank inviter UI functions
+function updateInviterProgress(progress) {
+  const progressBar = DOM_ELEMENTS.inviterProgressBar();
+  if (progressBar) {
+    const percentage = Math.min(Math.max(progress, 0), 100);
+    progressBar.style.width = `${percentage}%`;
+    progressBar.textContent = `${Math.round(percentage)}%`;
+  }
+}
+
+function addInviterMessage(message, type = '') {
+  const messageList = DOM_ELEMENTS.inviterMessageList();
+  if (!messageList) return;
+
+  messageList.innerHTML = '';
+  
+  const messageElement = document.createElement('div');
+  messageElement.className = `message-item ${type}`;
+  messageElement.textContent = message;
+  
+  messageList.appendChild(messageElement);
+}
+
+function updateInviterCallbackInfo(info) {
+  if (info.progress !== undefined) {
+    updateInviterProgress(info.progress);
+  }
+
+  if (info.message) {
+    const { action, name, invited, errors, completed } = info.message;
+    
+    if (action === 'complete') {
+      const message = completed && completed.length > 0 
+        ? completed.join(', ')
+        : `Inviting completed! Invited ${invited || 0} candidates.`;
+      addInviterMessage(message, 'success');
+      
+      if (errors && errors.length > 0) {
+        errors.forEach(error => addInviterMessage(`Error: ${error}`, 'error'));
+      }
+    } else if (action === 'error' || info.message.error) {
+      addInviterMessage(`Error: ${info.message.error || 'Unknown error'}`, 'error');
+    } else if (action === 'status') {
+      addInviterMessage(name || action);
+    }
+  }
+}
+
+function resetInviterDisplay() {
+  const messageList = DOM_ELEMENTS.inviterMessageList();
+  if (messageList) {
+    messageList.innerHTML = '';
+  }
+  updateInviterProgress(0);
+}
+
+function populateRcicAccountSelect(rcicAccounts) {
+  const select = DOM_ELEMENTS.rcicAccountSelect();
+  if (!select) {
+    console.error('RCIC account select element not found!');
+    return;
+  }
+  
+  select.innerHTML = '<option value="">Select an RCIC account...</option>';
+  
+  if (!rcicAccounts || !Array.isArray(rcicAccounts)) {
+    console.error('Invalid RCIC accounts data:', rcicAccounts);
+    return;
+  }
+  
+  rcicAccounts.forEach((rcic, index) => {
+    
+    const option = document.createElement('option');
+    option.value = index;
+    let label = 'Unnamed Account';
+    
+    // RCIC accounts have personal_info structure
+    if (rcic.personal_info) {
+      const firstName = rcic.personal_info.first_name || '';
+      const lastName = rcic.personal_info.last_name || '';
+      const rcicNumber = rcic.personal_info.rcic_number || '';
+      const company = rcic.personal_info.company || rcic.personal_info.operating_name || '';
+      
+      label = `${firstName} ${lastName}`.trim();
+      
+      // Add RCIC number if available
+      if (rcicNumber) {
+        label += ` - ${rcicNumber}`;
+      }
+      
+      // Add company if available
+      if (company) {
+        label += ` (${company})`;
+      }
+    }
+    
+    option.textContent = label;
+    select.appendChild(option);
+  });
+}
+
 // 事件处理函数
 async function handleLogin(e) {
   e.preventDefault();
@@ -98,15 +211,41 @@ async function handleLogin(e) {
     if (result.success) {
       currentUser = result.user;
       const dataResponse = await window.api.fetchFormData(currentUser._id);
+      const jobbankResponse = await window.api.fetchJobbankAccounts(currentUser._id);
       
       if (dataResponse.success) {
         formDataList = dataResponse.data;
         await populateApplicationSelect(formDataList);
         
+        if (jobbankResponse.success) {
+          jobbankAccountsList = jobbankResponse.data;
+          populateRcicAccountSelect(jobbankAccountsList);
+        }
+        
         DOM_ELEMENTS.loginContainer().classList.add('hidden');
         DOM_ELEMENTS.appContainer().classList.remove('hidden');
         
         setupDeleteButton();
+        setupTabNavigation();
+        
+        // 使用真实数据填充下拉框
+        setTimeout(() => {
+          if (jobbankAccountsList && jobbankAccountsList.length > 0) {
+            populateRcicAccountSelect(jobbankAccountsList);
+          } else {
+            const noDataMessage = [
+              {
+                personal_info: {
+                  first_name: "No RCIC accounts",
+                  last_name: "found", 
+                  rcic_number: "N/A",
+                  company: "Please check your account setup"
+                }
+              }
+            ];
+            populateRcicAccountSelect(noDataMessage);
+          }
+        }, 500);
       } else {
         errorMessage.textContent = dataResponse.error || 'Login successful, but form data fetch failed.';
       }
@@ -140,6 +279,96 @@ async function handleRefresh() {
   }
 }
 
+// Tab navigation setup
+function setupTabNavigation() {
+  const tabButtons = document.querySelectorAll('.tab-button');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const targetTab = button.getAttribute('data-tab');
+      
+      // Update active states
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+      
+      // Show/hide content
+      tabContents.forEach(content => {
+        if (content.id === `${targetTab}-tab`) {
+          content.classList.remove('hidden');
+          content.classList.add('active');
+        } else {
+          content.classList.add('hidden');
+          content.classList.remove('active');
+        }
+      });
+    });
+  });
+}
+
+// Jobbank inviter handlers
+async function handleRefreshJobbanks() {
+  try {
+    if (!currentUser) {
+      addInviterMessage('Please login first', 'error');
+      return;
+    }
+
+    const rcicResponse = await window.api.fetchJobbankAccounts(currentUser._id);
+    
+    if (rcicResponse.success) {
+      jobbankAccountsList = rcicResponse.data;
+      populateRcicAccountSelect(jobbankAccountsList);
+      addInviterMessage(`刷新成功，找到 ${jobbankAccountsList.length} 个RCIC账户`, 'success');
+    } else {
+      addInviterMessage(rcicResponse.error || 'Failed to refresh RCIC accounts', 'error');
+    }
+  } catch (error) {
+    console.error('Refresh Jobbank accounts error:', error);
+    addInviterMessage('An error occurred while refreshing', 'error');
+  }
+}
+
+async function handleStartInviter() {
+  const selectedIndex = DOM_ELEMENTS.rcicAccountSelect().value;
+  const jobPostId = DOM_ELEMENTS.jobPostId().value;
+  const invitationThreshold = parseFloat(DOM_ELEMENTS.invitationThreshold().value);
+  const itemsPerPage = 100; // Default value
+  const headless = DOM_ELEMENTS.inviterHeadlessMode().checked;
+  const timeout = parseInt(DOM_ELEMENTS.inviterTimeout().value) || 100;
+
+  if (!selectedIndex || selectedIndex === '') {
+    addInviterMessage('Please select a Jobbank/RCIC account', 'error');
+    return;
+  }
+
+  if (!jobPostId) {
+    addInviterMessage('Please enter a Job Post ID', 'error');
+    return;
+  }
+
+  const rcicData = jobbankAccountsList[selectedIndex];
+  
+  resetInviterDisplay();
+  try {
+    const result = await window.api.runJobbankInviter(
+      rcicData,
+      jobPostId,
+      invitationThreshold,
+      itemsPerPage,
+      headless,
+      timeout
+    );
+    
+    if (!result.success) {
+      addInviterMessage(`Inviter failed: ${result.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('Error running jobbank inviter:', error);
+    addInviterMessage(`Error: ${error.message}`, 'error');
+  }
+}
+
 // Update status handling
 function updateStatusMessage(message) {
   const updateStatus = DOM_ELEMENTS.updateStatus();
@@ -167,6 +396,8 @@ function updateStatusMessage(message) {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('=== DOM Content Loaded ===');
+  
   // Update version info from package.json using contextBridge
   const versionInfoElement = document.querySelector('.version-info');
   if (versionInfoElement && window.electron) {
@@ -252,6 +483,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+
+  // Setup Jobbank inviter event listeners
+  const startInviterBtn = DOM_ELEMENTS.startInviterBtn();
+  if (startInviterBtn) {
+    startInviterBtn.addEventListener('click', handleStartInviter);
+  }
+
+  const refreshRcicBtn = DOM_ELEMENTS.refreshRcicBtn();
+  if (refreshRcicBtn) {
+    refreshRcicBtn.addEventListener('click', handleRefreshJobbanks);
+  }
+
+  const exitInviterBtn = DOM_ELEMENTS.exitInviterBtn();
+  if (exitInviterBtn) {
+    exitInviterBtn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to exit?')) {
+        await window.api.exitApp();
+      }
+    });
+  }
+
+  // Set up inviter callback listener
+  window.api.onInviterCallbackInfo(updateInviterCallbackInfo);
 });
 
 function populateApplicationSelect(formDataList) {

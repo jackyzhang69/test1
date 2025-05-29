@@ -14,7 +14,13 @@ contextBridge.exposeInMainWorld('api', {
   
   // Add update-related events
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  onUpdateStatus: (callback) => ipcRenderer.on('update-status', (_, message) => callback(message))
+  onUpdateStatus: (callback) => ipcRenderer.on('update-status', (_, message) => callback(message)),
+  
+  // Jobbank inviter API methods
+  fetchJobbankAccounts: (userId) => ipcRenderer.invoke('fetchJobbankAccounts', userId),
+  runJobbankInviter: (jobbankData, jobPostId, invitationStar, itemsPerPage, headless, timeout) => 
+    ipcRenderer.invoke('runJobbankInviter', jobbankData, jobPostId, invitationStar, itemsPerPage, headless, timeout),
+  onInviterCallbackInfo: (callback) => ipcRenderer.on('inviter-callback-info', (_, info) => callback(info))
 });
 
 // Expose protected methods that allow the renderer process to use

@@ -23,9 +23,9 @@ body {
     background: var(--background-color);
     min-height: 100vh;
     display: flex;
-    align-items: flex-start;
+    align-items: flex-start; /* Changed from flex-start to center to better center content vertically if padding-top is removed/reduced */
     justify-content: center;
-    padding-top: 50px;
+    padding-top: 20px; /* Reduced padding-top from 50px to 20px */
     position: relative;
 }
 
@@ -461,7 +461,19 @@ input:focus {
 .setting-item {
     display: flex;
     align-items: center;
+    justify-content: space-between; /* Added for label/input alignment */
     margin-bottom: 10px;
+}
+
+.setting-item label { /* Added for label width and alignment */
+    flex-basis: 60%; /* Adjust as needed */
+    text-align: left;
+}
+
+.setting-item input[type="text"], /* Added for input alignment */
+.setting-item input[type="number"] {
+    flex-basis: 35%; /* Adjust as needed */
+    text-align: right;
 }
 
 .setting-item:last-child {
@@ -541,5 +553,48 @@ input:focus {
     color: #888;
     text-align: center;
     margin-top: -10px;
-    margin-bottom: 15px;
-} 
+}
+
+/* Tab Navigation Styles */
+.tab-navigation {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tab-button {
+    flex: 1;
+    padding: 12px 24px;
+    border: none;
+    background: #f0f0f0;
+    color: var(--text-color);
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+    background: #e0e0e0;
+}
+
+.tab-button.active {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 2px 4px rgba(74, 144, 226, 0.2);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Jobbank Inviter now uses form-filling-box styles */
