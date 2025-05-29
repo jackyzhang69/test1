@@ -223,10 +223,12 @@ input:focus {
 
 .application-select {
     width: 100%;
+    max-width: 100%;
     padding: 12px;
     border: 1px solid #ddd;
     border-radius: 5px;
     font-size: 16px;
+    box-sizing: border-box;
 }
 
 .button-container {
@@ -295,6 +297,138 @@ input:focus {
     overflow-y: auto;
     font-family: monospace;
     white-space: pre-wrap;
+}
+
+/* Setting section */
+.setting-section {
+    margin-bottom: 20px;
+}
+
+.setting-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.setting-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 16px;
+}
+
+/* Small button style */
+.small-button {
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+    min-width: auto !important;
+    width: auto !important;
+    flex: none !important;
+}
+
+/* Job Posts Container Styles */
+.job-posts-container {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.job-posts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    clear: both;
+    width: 100%;
+}
+
+.job-post-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.job-post-id {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.minimum-stars {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.remove-job-post-btn {
+    padding: 8px 12px !important;
+    min-width: auto !important;
+    flex: 0 0 auto !important;
+}
+
+.remove-job-post-btn i {
+    margin: 0;
+}
+
+/* Progress Bar Styles */
+.overall-progress {
+    background-color: #28a745;
+}
+
+.progress-container h4 {
+    margin: 10px 0 5px 0;
+    font-size: 14px;
+    color: #666;
+}
+
+/* Invitation Statistics */
+.invitation-stats {
+    background: #f0f8ff;
+    border: 1px solid #d0e8ff;
+    border-radius: 5px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.invitation-stats h4 {
+    margin-top: 0;
+    color: #333;
+}
+
+.stats-list {
+    margin-top: 10px;
+}
+
+.stat-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.stat-line:last-child {
+    border-bottom: none;
+}
+
+.job-post-label {
+    font-weight: 500;
+    color: #333;
+}
+
+.invitation-count {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.stats-total {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 2px solid #e0e0e0;
+    text-align: right;
 }
 
 .callback-container {

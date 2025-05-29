@@ -54,6 +54,83 @@ class JobbankInviter {
         await browser.close();
         return this;
     }
+    
+    async inviteMultipleJobPosts(jobPosts, itemsPerPage = 100) {
+        const userAgents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; rv:89.0) Gecko/20100101 Firefox/89.0"
+        ];
+
+        const headless = process.env.environment === 'dev' ? false : true;
+        const browser = await chromium.launch({
+            headless,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-infobars',
+                '--ignore-certifcate-errors',
+                '--ignore-certifcate-errors-spki-list',
+                `--user-agent=${userAgents[Math.floor(Math.random() * userAgents.length)]}`
+            ]
+        });
+
+        const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(this.timeout);
+        page.setDefaultTimeout(this.timeout);
+        page.on('dialog', dialog => this.handleDialog(dialog));
+        await page.setViewportSize({ width: 1920, height: 1440 });
+        
+        let loggedIn = false;
+        const results = [];
+        
+        for (let i = 0; i < jobPosts.length; i++) {
+            const { jobPostId, minimumStars } = jobPosts[i];
+            
+            // Send overall progress update at the start of each job
+            if (this.overallProgressCallback) {
+                this.overallProgressCallback(i, jobPosts.length, jobPostId);
+            }
+            
+            this.logger(`Processing job post ${jobPostId} (${i + 1}/${jobPosts.length})...`);
+            
+            // Reset counters for this job
+            const startInvited = this.invited;
+            
+            // Only login on first job
+            if (!loggedIn) {
+                const loginSuccess = await this.loginJobbank(page);
+                if (!loginSuccess) {
+                    this.errors.push(`Failed to login for job ${jobPostId}`);
+                    results.push({ jobPostId, invited: 0, error: 'Login failed' });
+                    continue;
+                }
+                loggedIn = true;
+            }
+            
+            // Process the job post
+            await this.goToJobPost(page, jobPostId, itemsPerPage);
+            await this.getAllFullProfileButtons(page, minimumStars);
+            
+            const invitedForThisJob = this.invited - startInvited;
+            results.push({ jobPostId, invited: invitedForThisJob });
+            
+            this.logger(`Completed job ${jobPostId}: ${invitedForThisJob} invitations sent`);
+            
+            // Send job completion callback
+            if (this.jobCompleteCallback) {
+                this.jobCompleteCallback(jobPostId, invitedForThisJob);
+            }
+        }
+        
+        // Logout after all jobs are done
+        if (loggedIn) {
+            await this.logoutJobbank(page);
+        }
+        
+        await browser.close();
+        return { results, totalInvited: this.invited, errors: this.errors };
+    }
 
     async jobbankPostInvite(page, jobId, invitationStar, itemsPerPage) {
         const loginSuccess = await this.loginJobbank(page);
@@ -110,7 +187,7 @@ class JobbankInviter {
             this.errors.push(errorMessage);
         }
 
-        await this.logoutJobbank(page);
+        // Don't logout here - will be handled by the caller
     }
 
     handleDialog(dialog) {
@@ -290,6 +367,10 @@ class JobbankInviter {
         for (let index = 0; index < rows.length; index++) {
             const row = rows[index];
             this.logger(`Processing row ${index + 1} of ${rows.length}`);
+            // Send progress update for current candidate
+            if (this.progressCallback) {
+                this.progressCallback(index + 1, rows.length);
+            }
             const scoreText = await row.locator('td:nth-child(3)').innerText();
             const invitedText = await row.locator('td:nth-child(9)').innerText();
             const score = this.getScore(scoreText);

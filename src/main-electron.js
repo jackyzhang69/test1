@@ -418,6 +418,46 @@ ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationSta
     // Create inviter instance
     const inviter = new JobbankInviter(jobbank, logger, timeout * 1000);
     
+    // Add progress callback for candidate processing
+    inviter.progressCallback = (current, total) => {
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: { 
+          action: 'progress',
+          currentCandidate: current,
+          totalCandidates: total
+        }
+      });
+    };
+    
+    // Add overall progress callback
+    inviter.overallProgressCallback = (currentIndex, totalJobs, jobPostId) => {
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: {
+          action: 'overall-progress',
+          currentJob: currentIndex + 1,
+          totalJobs: totalJobs,
+          jobPostId: jobPostId
+        }
+      });
+    };
+    
+    // Add job completion callback
+    inviter.jobCompleteCallback = (jobPostId, invitedCount) => {
+      // Set current job progress to 100%
+      mainWindow.webContents.send('inviter-callback-info', {
+        progress: 100
+      });
+      
+      // Send completion message
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: {
+          action: 'complete',
+          invited: invitedCount,
+          jobPostId: jobPostId
+        }
+      });
+    };
+    
     // Set headless mode
     if (headless) {
       process.env.environment = 'production';
@@ -435,7 +475,8 @@ ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationSta
         action: 'complete',
         invited: result.invited,
         errors: result.errors,
-        completed: result.completed
+        completed: result.completed,
+        jobPostId: jobPostId  // Include job post ID for tracking
       }
     };
     
@@ -448,6 +489,116 @@ ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationSta
         errors: result.errors,
         completed: result.completed
       }
+    };
+  } catch (error) {
+    console.error('Jobbank inviter error:', error);
+    mainWindow.webContents.send('inviter-callback-info', {
+      message: { action: 'error', error: error.message }
+    });
+    return { 
+      success: false, 
+      error: error.message 
+    };
+  }
+});
+
+ipcMain.handle('runJobbankInviterMultiple', async (_, rcicData, jobPosts, itemsPerPage, headless, timeout) => {
+  try {
+    const { Jobbank } = require('./inviter/jobbank');
+    const { JobbankInviter } = require('./inviter/inviter');
+    
+    // Convert RCIC data to jobbank format
+    const jobbank = new Jobbank();
+    
+    // Map RCIC fields to jobbank fields
+    if (rcicData.personal_info) {
+      jobbank.personal_info = rcicData.personal_info;
+    } else {
+      // Create personal_info from available fields
+      jobbank.personal_info = {
+        first_name: rcicData.first_name || rcicData.firstName || '',
+        last_name: rcicData.last_name || rcicData.lastName || '',
+        identifier: rcicData.rcic_number || rcicData.rcicNumber || ''
+      };
+    }
+    
+    // Map jobbank portal credentials - LMIA portal IS the jobbank portal
+    jobbank.jobbank_portal = rcicData.lmia_portal || {
+      username: '',
+      password: ''
+    };
+    
+    // Map security questions - LMIA SQA IS the jobbank SQA
+    jobbank.jobbank_sqa = rcicData.lmia_sqa || [];
+    
+    // Create logger that sends updates to renderer
+    const logger = (message) => {
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: { action: 'status', name: message }
+      });
+    };
+
+    // Create inviter instance
+    const inviter = new JobbankInviter(jobbank, logger, timeout * 1000);
+    
+    // Add progress callback for candidate processing
+    inviter.progressCallback = (current, total) => {
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: { 
+          action: 'progress',
+          currentCandidate: current,
+          totalCandidates: total
+        }
+      });
+    };
+    
+    // Add overall progress callback
+    inviter.overallProgressCallback = (currentIndex, totalJobs, jobPostId) => {
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: {
+          action: 'overall-progress',
+          currentJob: currentIndex + 1,
+          totalJobs: totalJobs,
+          jobPostId: jobPostId
+        }
+      });
+    };
+    
+    // Add job completion callback
+    inviter.jobCompleteCallback = (jobPostId, invitedCount) => {
+      // Set current job progress to 100%
+      mainWindow.webContents.send('inviter-callback-info', {
+        progress: 100
+      });
+      
+      // Send completion message
+      mainWindow.webContents.send('inviter-callback-info', {
+        message: {
+          action: 'complete',
+          invited: invitedCount,
+          jobPostId: jobPostId
+        }
+      });
+    };
+    
+    // Set headless mode
+    if (headless) {
+      process.env.environment = 'production';
+    } else {
+      process.env.environment = 'dev';
+    }
+    
+    // Run the inviter for multiple job posts
+    const result = await inviter.inviteMultipleJobPosts(jobPosts, itemsPerPage);
+    
+    // The callbacks are now sent during processing, so we don't need to send them here
+    // Just return the final results
+    
+    return { 
+      success: true, 
+      results: result.results,
+      totalInvited: result.totalInvited,
+      errors: result.errors
     };
   } catch (error) {
     console.error('Jobbank inviter error:', error);

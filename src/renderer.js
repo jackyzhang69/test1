@@ -32,12 +32,20 @@ const DOM_ELEMENTS = {
   exitInviterBtn: () => document.getElementById('exitInviterBtn'),
   inviterProgressBar: () => document.getElementById('inviterProgressBar'),
   inviterMessageList: () => document.getElementById('inviterMessageList'),
+  // New elements for multiple job posts
+  addJobPostBtn: () => document.getElementById('add-job-post-btn'),
+  jobPostsList: () => document.getElementById('job-posts-list'),
+  overallProgressBar: () => document.getElementById('overallProgressBar'),
+  currentJobTitle: () => document.getElementById('currentJobTitle'),
+  invitationStats: () => document.getElementById('invitationStats'),
 };
 
 // 状态管理
 let currentUser = null;
 let formDataList = [];
 let jobbankAccountsList = [];
+let jobPostCounter = 1;
+let invitationStats = {};
 
 // UI 更新函数
 function updateProgress(progress) {
@@ -123,13 +131,29 @@ function updateInviterCallbackInfo(info) {
   }
 
   if (info.message) {
-    const { action, name, invited, errors, completed } = info.message;
+    const { action, name, invited, errors, completed, jobPostId, currentCandidate, totalCandidates } = info.message;
     
-    if (action === 'complete') {
+    // Update progress based on candidate processing
+    if (action === 'progress' && currentCandidate !== undefined && totalCandidates !== undefined && totalCandidates > 0) {
+      const progress = (currentCandidate / totalCandidates) * 100;
+      updateInviterProgress(progress);
+      return; // Don't process further for progress updates
+    }
+    
+    if (action === 'overall-progress') {
+      const { currentJob, totalJobs, jobPostId } = info.message;
+      updateOverallProgress(currentJob, totalJobs);
+      updateCurrentJobTitle(jobPostId);
+    } else if (action === 'complete') {
       const message = completed && completed.length > 0 
         ? completed.join(', ')
         : `Inviting completed! Invited ${invited || 0} candidates.`;
       addInviterMessage(message, 'success');
+      
+      // Track invitation count for this job post
+      if (jobPostId && invited !== undefined) {
+        invitationStats[jobPostId] = invited;
+      }
       
       if (errors && errors.length > 0) {
         errors.forEach(error => addInviterMessage(`Error: ${error}`, 'error'));
@@ -193,6 +217,109 @@ function populateRcicAccountSelect(rcicAccounts) {
     option.textContent = label;
     select.appendChild(option);
   });
+}
+
+// Job Posts Management Functions
+function addJobPostRow() {
+  const jobPostsList = DOM_ELEMENTS.jobPostsList();
+  if (!jobPostsList) return;
+  
+  const newRow = document.createElement('div');
+  newRow.className = 'job-post-row';
+  newRow.dataset.index = jobPostCounter++;
+  
+  newRow.innerHTML = `
+    <input type="text" class="job-post-id" placeholder="Job Post ID" title="Job Post ID from JobBank">
+    <input type="number" class="minimum-stars" value="2" min="1" max="5" step="1" title="Minimum stars (1-5)" style="width: 120px;">
+    <button class="remove-job-post-btn action-button secondary-button" title="Remove this job post">
+      <i class="fas fa-trash"></i>
+    </button>
+  `;
+  
+  // Add remove handler
+  const removeBtn = newRow.querySelector('.remove-job-post-btn');
+  removeBtn.addEventListener('click', () => removeJobPostRow(newRow));
+  
+  jobPostsList.appendChild(newRow);
+  updateRemoveButtonsVisibility();
+}
+
+function removeJobPostRow(row) {
+  row.remove();
+  updateRemoveButtonsVisibility();
+}
+
+function updateRemoveButtonsVisibility() {
+  const jobPostsList = DOM_ELEMENTS.jobPostsList();
+  if (!jobPostsList) return;
+  
+  const rows = jobPostsList.querySelectorAll('.job-post-row');
+  rows.forEach(row => {
+    const removeBtn = row.querySelector('.remove-job-post-btn');
+    if (removeBtn) {
+      removeBtn.style.display = rows.length > 1 ? 'flex' : 'none';
+    }
+  });
+}
+
+function getJobPosts() {
+  const jobPostsList = DOM_ELEMENTS.jobPostsList();
+  if (!jobPostsList) return [];
+  
+  const jobPosts = [];
+  const rows = jobPostsList.querySelectorAll('.job-post-row');
+  
+  rows.forEach(row => {
+    const jobPostId = row.querySelector('.job-post-id').value.trim();
+    const minimumStars = parseFloat(row.querySelector('.minimum-stars').value);
+    
+    if (jobPostId) {
+      jobPosts.push({ jobPostId, minimumStars });
+    }
+  });
+  
+  return jobPosts;
+}
+
+function updateOverallProgress(current, total) {
+  const progressBar = DOM_ELEMENTS.overallProgressBar();
+  if (progressBar) {
+    const percentage = total > 0 ? (current / total) * 100 : 0;
+    progressBar.style.width = `${percentage}%`;
+    progressBar.textContent = `${current} / ${total} Job Posts`;
+  }
+}
+
+function updateCurrentJobTitle(jobPostId) {
+  const titleElement = DOM_ELEMENTS.currentJobTitle();
+  if (titleElement) {
+    titleElement.textContent = `Current Job Progress - ${jobPostId}`;
+  }
+}
+
+function displayInvitationStats() {
+  const statsElement = DOM_ELEMENTS.invitationStats();
+  if (!statsElement) return;
+  
+  const totalInvitations = Object.values(invitationStats).reduce((sum, count) => sum + count, 0);
+  
+  const statsHtml = `
+    <h4>Invitation Summary</h4>
+    <div class="stats-list">
+      ${Object.entries(invitationStats).map(([jobId, count]) => `
+        <div class="stat-line">
+          <span class="job-post-label">Job Post ${jobId}:</span>
+          <span class="invitation-count">${count} invitations sent</span>
+        </div>
+      `).join('')}
+    </div>
+    <div class="stats-total">
+      <strong>Total Invitations: ${totalInvitations}</strong>
+    </div>
+  `;
+  
+  statsElement.innerHTML = statsHtml;
+  statsElement.classList.remove('hidden');
 }
 
 // 事件处理函数
@@ -331,8 +458,7 @@ async function handleRefreshJobbanks() {
 
 async function handleStartInviter() {
   const selectedIndex = DOM_ELEMENTS.rcicAccountSelect().value;
-  const jobPostId = DOM_ELEMENTS.jobPostId().value;
-  const invitationThreshold = parseFloat(DOM_ELEMENTS.invitationThreshold().value);
+  const jobPosts = getJobPosts();
   const itemsPerPage = 100; // Default value
   const headless = DOM_ELEMENTS.inviterHeadlessMode().checked;
   const timeout = parseInt(DOM_ELEMENTS.inviterTimeout().value) || 100;
@@ -342,27 +468,60 @@ async function handleStartInviter() {
     return;
   }
 
-  if (!jobPostId) {
-    addInviterMessage('Please enter a Job Post ID', 'error');
+  if (jobPosts.length === 0) {
+    addInviterMessage('Please enter at least one Job Post ID', 'error');
     return;
   }
 
   const rcicData = jobbankAccountsList[selectedIndex];
   
   resetInviterDisplay();
+  invitationStats = {}; // Reset stats
+  
   try {
-    const result = await window.api.runJobbankInviter(
-      rcicData,
-      jobPostId,
-      invitationThreshold,
-      itemsPerPage,
-      headless,
-      timeout
-    );
+    // Update overall progress
+    updateOverallProgress(0, jobPosts.length);
     
-    if (!result.success) {
-      addInviterMessage(`Inviter failed: ${result.error}`, 'error');
+    // If single job, use old method for compatibility
+    if (jobPosts.length === 1) {
+      const { jobPostId, minimumStars } = jobPosts[0];
+      updateCurrentJobTitle(jobPostId);
+      
+      const result = await window.api.runJobbankInviter(
+        rcicData,
+        jobPostId,
+        minimumStars,
+        itemsPerPage,
+        headless,
+        timeout
+      );
+      
+      if (!result.success) {
+        addInviterMessage(`Job ${jobPostId} failed: ${result.error}`, 'error');
+      }
+    } else {
+      // For multiple jobs, use the new method that doesn't logout between jobs
+      const result = await window.api.runJobbankInviterMultiple(
+        rcicData,
+        jobPosts,
+        itemsPerPage,
+        headless,
+        timeout
+      );
+      
+      if (!result.success) {
+        addInviterMessage(`Inviter failed: ${result.error}`, 'error');
+      } else {
+        addInviterMessage(`Processed ${result.results.length} job posts`, 'info');
+        addInviterMessage(`Total invitations sent: ${result.totalInvited}`, 'success');
+      }
     }
+    
+    // All jobs completed
+    updateOverallProgress(jobPosts.length, jobPosts.length);
+    addInviterMessage('All job posts processed!', 'success');
+    displayInvitationStats();
+    
   } catch (error) {
     console.error('Error running jobbank inviter:', error);
     addInviterMessage(`Error: ${error.message}`, 'error');
@@ -503,6 +662,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+  
+  // Add job post button
+  const addJobPostBtn = DOM_ELEMENTS.addJobPostBtn();
+  if (addJobPostBtn) {
+    addJobPostBtn.addEventListener('click', addJobPostRow);
+  }
+  
+  // Initialize remove buttons visibility
+  updateRemoveButtonsVisibility();
 
   // Set up inviter callback listener
   window.api.onInviterCallbackInfo(updateInviterCallbackInfo);

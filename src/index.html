@@ -118,13 +118,24 @@
           </select>
           <div class="form-filling">
             <div class="settings-container">
-              <div class="setting-item">
-                <label for="job-post-id">Job Post ID:</label>
-                <input type="text" id="job-post-id" placeholder="Enter Job Post ID" title="Job Post ID from JobBank">
-              </div>
-              <div class="setting-item">
-                <label for="invitation-threshold">Minimum Stars (out of 5):</label>
-                <input type="number" id="invitation-threshold" value="2" min="1" max="5" step="1" title="Minimum candidate stars to invite (integer between 1 and 5)">
+              <div class="setting-section">
+                <div class="setting-header">
+                  <h3>Job Posts to Process</h3>
+                  <button id="add-job-post-btn" class="action-button secondary-button small-button" title="Add another job post">
+                    <i class="fas fa-plus"></i> Add
+                  </button>
+                </div>
+                <div class="job-posts-container" id="job-posts-container">
+                  <div class="job-posts-list" id="job-posts-list">
+                    <div class="job-post-row" data-index="0">
+                      <input type="text" class="job-post-id" placeholder="Job Post ID" title="Job Post ID from JobBank">
+                      <input type="number" class="minimum-stars" value="2" min="1" max="5" step="1" title="Minimum stars (1-5)" style="width: 120px;">
+                      <button class="remove-job-post-btn action-button secondary-button" title="Remove this job post" style="display: none;">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="setting-item">
                 <label for="inviter-timeout" title="Setting timeout amount when stuck">Timeout (seconds):</label>
@@ -155,13 +166,27 @@
         </div>
         
         <div id="inviter-details" class="form-details"></div>
+        
+        <!-- Overall Progress -->
         <div class="progress-container">
+          <h4>Overall Progress</h4>
+          <div class="progress">
+            <div id="overallProgressBar" class="progress-bar overall-progress" role="progressbar" style="width: 0%">0 / 0 Job Posts</div>
+          </div>
+        </div>
+        
+        <!-- Current Job Progress -->
+        <div class="progress-container">
+          <h4 id="currentJobTitle">Current Job Progress</h4>
           <div class="progress">
             <div id="inviterProgressBar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
           </div>
         </div>
+        
+        <!-- Messages and Statistics -->
         <div class="callback-container">
           <div id="inviterMessageList" class="message-list"></div>
+          <div id="invitationStats" class="invitation-stats hidden"></div>
           <pre id="inviterCallbackInfo" class="callback-info"></pre>
         </div>
       </div>

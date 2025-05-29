@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
   fetchJobbankAccounts: (userId) => ipcRenderer.invoke('fetchJobbankAccounts', userId),
   runJobbankInviter: (jobbankData, jobPostId, invitationStar, itemsPerPage, headless, timeout) => 
     ipcRenderer.invoke('runJobbankInviter', jobbankData, jobPostId, invitationStar, itemsPerPage, headless, timeout),
+  runJobbankInviterMultiple: (jobbankData, jobPosts, itemsPerPage, headless, timeout) =>
+    ipcRenderer.invoke('runJobbankInviterMultiple', jobbankData, jobPosts, itemsPerPage, headless, timeout),
   onInviterCallbackInfo: (callback) => ipcRenderer.on('inviter-callback-info', (_, info) => callback(info))
 });
 
