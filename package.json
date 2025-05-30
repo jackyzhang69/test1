@@ -44,6 +44,7 @@
   "build": {
     "appId": "com.watchpup.frombro",
     "productName": "FormBro",
+    "afterSign": "scripts/notarize.js",
     "files": [
       "src/**/*",
       "package.json",
