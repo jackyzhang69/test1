@@ -93,8 +93,12 @@ function updateCallbackInfo(info) {
     } else if (info.message.error) {
       addMessage(`Error: ${info.message.error}`, 'error');
     } else {
-      // 只显示操作名称
-      addMessage(name || action);
+      // 显示当前操作在form-details区域
+      const formDetails = DOM_ELEMENTS.formDetails();
+      if (formDetails && (name || action)) {
+        formDetails.style.display = 'block';
+        formDetails.innerHTML = `<div class="current-action">Current action: ${name || action}</div>`;
+      }
     }
   }
 }
@@ -105,6 +109,13 @@ function resetFormFillingDisplay() {
     messageList.innerHTML = '';
   }
   updateProgress(0);
+  
+  // 隐藏并清空form details
+  const formDetails = DOM_ELEMENTS.formDetails();
+  if (formDetails) {
+    formDetails.style.display = 'none';
+    formDetails.innerHTML = '';
+  }
 }
 
 // Jobbank inviter UI functions
@@ -879,20 +890,45 @@ document.addEventListener('DOMContentLoaded', async () => {
       resetFormFillingDisplay();
       addLoadingState(fillFormBtn);
       
+      // 记录开始时间
+      const startTime = new Date();
+      
+      // 显示正在填充的表单名称
+      const formDetails = DOM_ELEMENTS.formDetails();
+      if (formDetails) {
+        formDetails.style.display = 'block';
+        formDetails.innerHTML = `<div class="form-info">Filling form: ${formData.application_name || 'Unnamed Form'}</div>`;
+      }
+      
       try {
         const result = await window.api.runFormFiller(formData, headless, timeout);
         
+        // 计算耗时
+        const endTime = new Date();
+        const duration = Math.round((endTime - startTime) / 1000);
+        const minutes = Math.floor(duration / 60);
+        const seconds = duration % 60;
+        const timeString = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+        
         if (result.success) {
-          addMessage('Form filled successfully', 'success');
+          addMessage(`Form filled successfully! Time taken: ${timeString}`, 'success');
           updateProgress(100);
         } else {
-          addMessage(`Form filling failed: ${result.error}`, 'error');
+          addMessage(`Form filling failed: ${result.error} (Time: ${timeString})`, 'error');
         }
       } catch (error) {
         console.error('Error running form filler:', error);
-        addMessage(`Error: ${error.message}`, 'error');
+        const endTime = new Date();
+        const duration = Math.round((endTime - startTime) / 1000);
+        addMessage(`Error: ${error.message} (Time: ${duration}s)`, 'error');
       } finally {
         removeLoadingState(fillFormBtn);
+        // 完成后隐藏form details
+        if (formDetails) {
+          setTimeout(() => {
+            formDetails.style.display = 'none';
+          }, 2000);
+        }
       }
     });
   }

@@ -12,6 +12,10 @@
   --primary-800: #1e40af;
   --primary-900: #1e3a8a;
   
+  /* Light Mode Specific */
+  --bg-base: #f5f7fa;
+  --bg-input: #f8f9fa;
+  
   /* Secondary Colors */
   --secondary-50: #f8fafc;
   --secondary-100: #f1f5f9;
@@ -201,7 +205,7 @@ body {
   font-weight: var(--font-weight-normal);
   line-height: var(--line-height-normal);
   color: var(--text-color);
-  background: var(--background-gradient);
+  background: var(--background-color);
   min-height: 100vh;
   display: flex;
   align-items: flex-start;
@@ -1357,6 +1361,32 @@ h3 {
   font-weight: var(--font-weight-semibold);
   color: var(--primary-color);
   letter-spacing: 0.025em;
+}
+
+/* Form Filling Status Display */
+#form-details {
+  display: none;
+  background: var(--bg-elevated);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--border-subtle);
+}
+
+.form-info {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-muted);
+  letter-spacing: 0.025em;
+  text-align: center;
+}
+
+.current-action {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--primary-color);
+  letter-spacing: 0.025em;
+  text-align: left;
 }
 
 .form-details::-webkit-scrollbar {
