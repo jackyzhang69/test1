@@ -670,17 +670,62 @@ async function handleStartInviter() {
   const jobPosts = getJobPosts();
   const itemsPerPage = 100; // Default value
   const headless = DOM_ELEMENTS.inviterHeadlessMode().checked;
-  const timeout = parseInt(DOM_ELEMENTS.inviterTimeout().value) || 100;
+  const timeout = parseInt(DOM_ELEMENTS.inviterTimeout().value) || 30;
 
+  // Comprehensive validation with detailed error messages
+  
+  // 1. Check RCIC account selection
   if (!selectedIndex || selectedIndex === '') {
-    addInviterMessage('Please select a Jobbank/RCIC account', 'error');
+    addInviterMessage('❌ Please select a Jobbank/RCIC account before starting', 'error');
     return;
   }
 
-  if (jobPosts.length === 0) {
-    addInviterMessage('Please enter at least one Job Post ID', 'error');
+  // 2. Check if any job posts are entered
+  const allRows = DOM_ELEMENTS.jobPostsList()?.querySelectorAll('.job-post-row') || [];
+  if (allRows.length === 0) {
+    addInviterMessage('❌ Please add at least one job post using the "Add" button', 'error');
     return;
   }
+
+  // 3. Check for empty job post IDs
+  const emptyJobPosts = [];
+  const invalidStars = [];
+  
+  allRows.forEach((row, index) => {
+    const jobPostId = row.querySelector('.job-post-id').value.trim();
+    const minimumStars = parseFloat(row.querySelector('.minimum-stars').value);
+    
+    if (!jobPostId) {
+      emptyJobPosts.push(index + 1);
+    }
+    
+    if (isNaN(minimumStars) || minimumStars < 1 || minimumStars > 5) {
+      invalidStars.push(index + 1);
+    }
+  });
+
+  // 4. Validate job post IDs
+  if (emptyJobPosts.length > 0) {
+    const rowText = emptyJobPosts.length === 1 ? 'row' : 'rows';
+    addInviterMessage(`❌ Job Post ID is required in ${rowText} ${emptyJobPosts.join(', ')}`, 'error');
+    return;
+  }
+
+  // 5. Validate minimum stars
+  if (invalidStars.length > 0) {
+    const rowText = invalidStars.length === 1 ? 'row' : 'rows';
+    addInviterMessage(`❌ Minimum Stars must be between 1-5 in ${rowText} ${invalidStars.join(', ')}`, 'error');
+    return;
+  }
+
+  // 6. Final check - should have valid job posts after validation
+  if (jobPosts.length === 0) {
+    addInviterMessage('❌ No valid job posts found. Please check your entries', 'error');
+    return;
+  }
+
+  // 7. Show validation success message
+  addInviterMessage(`✅ Validation passed! Processing ${jobPosts.length} job post${jobPosts.length > 1 ? 's' : ''} with ${jobbankAccountsList[selectedIndex]?.personal_info?.first_name || 'selected'} account`, 'info');
 
   const rcicData = jobbankAccountsList[selectedIndex];
   

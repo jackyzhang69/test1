@@ -9,13 +9,62 @@ const randomDelay = async (msg = "", minSeconds = 1, maxSeconds = 5) => {
 };
 
 class JobbankInviterService {
-    constructor(jobbank, logger = console.log, timeout = 100000) {
+    constructor(jobbank, logger = console.log, timeout = 30000) {
         this.jobbank = jobbank;
         this.invited = 0;
         this.errors = [];
         this.completed = [];
         this.logger = logger;
         this.timeout = timeout;
+    }
+
+    /**
+     * Check if an error should not be retried (permanent failure)
+     * @param {string} errorMessage 
+     * @returns {boolean}
+     */
+    isNonRetryableError(errorMessage) {
+        const nonRetryablePatterns = [
+            'Password or username is incorrect',
+            'Missing jobbank portal credentials',
+            'Security question answer is incorrect',
+            'Job post .* not found',
+            'Job post .* is pending',
+            'Job post .* has no candidates',
+            'Job post .* invalid',
+            'HTTP Error 404',
+            'No answer found for security question',
+            'Please check it in Job Posts'
+        ];
+        return nonRetryablePatterns.some(pattern => 
+            new RegExp(pattern, 'i').test(errorMessage));
+    }
+
+    /**
+     * Retry wrapper with status updates
+     * @param {Function} operation 
+     * @param {number} maxRetries 
+     * @param {string} operationName 
+     * @returns {Promise<any>}
+     */
+    async retryWithStatus(operation, maxRetries = 3, operationName) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                if (this.isNonRetryableError(error.message)) {
+                    throw error; // Don't retry permanent failures
+                }
+                
+                if (attempt < maxRetries) {
+                    this.logger(`⚠️ ${operationName} failed (attempt ${attempt}/${maxRetries}). Retrying...`);
+                    await randomDelay('retry delay', 2, 4);
+                } else {
+                    this.logger(`❌ ${operationName} failed after ${maxRetries} attempts`);
+                    throw error; // Max retries reached
+                }
+            }
+        }
     }
 
     async screen(page, name) {
@@ -108,7 +157,12 @@ class JobbankInviterService {
             }
             
             // Process the job post
-            await this.goToJobPost(page, jobPostId, itemsPerPage);
+            const navigateSuccess = await this.goToJobPost(page, jobPostId, itemsPerPage);
+            if (!navigateSuccess) {
+                // Job post not found or invalid - skip this job
+                results.push({ jobPostId, invited: 0, error: 'Job post not found or invalid' });
+                continue;
+            }
             
             // Execute the actual invitation process (same logic as single job)
             let fullProfileButton = await this.getAllFullProfileButtons(page, minimumStars);
@@ -120,28 +174,38 @@ class JobbankInviterService {
                 try {
                     this.logger(`🎯 Attempting to invite candidate #${jobInvitationCount + 1}...`);
                     
-                    // Click on candidate profile
-                    await fullProfileButton.click();
+                    // Invite candidate with retry logic
+                    await this.retryWithStatus(async () => {
+                        // Click on candidate profile
+                        await fullProfileButton.click();
+                        
+                        // Find and click the "Invite to apply" button
+                        const itaButton = page.locator('input:has-text("Invite to apply")');
+                        await itaButton.scrollIntoViewIfNeeded();
+                        await itaButton.click();
+                        
+                        // Go back to candidate list
+                        await page.goBack();
+                        await page.waitForLoadState('networkidle', { timeout: this.timeout });
+                    }, 2, `Candidate invitation #${jobInvitationCount + 1}`);
                     
-                    // Find and click the "Invite to apply" button
-                    const itaButton = page.locator('input:has-text("Invite to apply")');
-                    await itaButton.scrollIntoViewIfNeeded();
-                    await itaButton.click();
-                    
-                    // Go back to candidate list
                     this.logger(`📧 Invitation sent! Going back to candidate list...`);
-                    await page.goBack();
                     this.invited++;
                     jobInvitationCount++;
-                    
-                    await page.waitForLoadState('networkidle', { timeout: this.timeout });
                     
                     // Look for next candidate
                     fullProfileButton = await this.getAllFullProfileButtons(page, minimumStars);
                 } catch (error) {
-                    this.logger(`❌ Error inviting candidate: ${error.message}`);
-                    this.errors.push(`Error inviting candidate: ${error.message}`);
-                    break;
+                    if (this.isNonRetryableError(error.message)) {
+                        this.logger(`❌ Permanent error inviting candidate: ${error.message}`);
+                        this.errors.push(`Error inviting candidate: ${error.message}`);
+                        break;
+                    } else {
+                        this.logger(`❌ Failed to invite candidate after retries: ${error.message}`);
+                        this.errors.push(`Error inviting candidate: ${error.message}`);
+                        // Continue with next candidate instead of breaking
+                        fullProfileButton = await this.getAllFullProfileButtons(page, minimumStars);
+                    }
                 }
             }
             
@@ -170,8 +234,8 @@ class JobbankInviterService {
         if (!loginSuccess) {
             if (this.errors[this.errors.length - 1] === 'Session expired') {
                 this.errors.pop();
+                this.logger('🔄 Session expired. Retrying login...');
                 await randomDelay('session expired');
-                this.logger('Session expired. Try to login again...');
                 const retrySuccess = await this.loginJobbank(page, true);
                 if (!retrySuccess) {
                     return;
@@ -198,14 +262,31 @@ class JobbankInviterService {
             let fullProfileButton = await this.getAllFullProfileButtons(page, invitationStar);
 
             while (fullProfileButton) {
-                await fullProfileButton.click();
-                const itaButton = page.locator('input:has-text("Invite to apply")');
-                await itaButton.scrollIntoViewIfNeeded();
-                await itaButton.click();
-                await page.goBack();
-                this.invited++;
-                await page.waitForLoadState('networkidle', { timeout: this.timeout });
-                fullProfileButton = await this.getAllFullProfileButtons(page, invitationStar);
+                try {
+                    // Invite candidate with retry logic
+                    await this.retryWithStatus(async () => {
+                        await fullProfileButton.click();
+                        const itaButton = page.locator('input:has-text("Invite to apply")');
+                        await itaButton.scrollIntoViewIfNeeded();
+                        await itaButton.click();
+                        await page.goBack();
+                        await page.waitForLoadState('networkidle', { timeout: this.timeout });
+                    }, 2, `Candidate invitation #${this.invited + 1}`);
+                    
+                    this.invited++;
+                    fullProfileButton = await this.getAllFullProfileButtons(page, invitationStar);
+                } catch (error) {
+                    if (this.isNonRetryableError(error.message)) {
+                        this.logger(`❌ Permanent error inviting candidate: ${error.message}`);
+                        this.errors.push(`Error inviting candidate: ${error.message}`);
+                        break;
+                    } else {
+                        this.logger(`❌ Failed to invite candidate after retries: ${error.message}`);
+                        this.errors.push(`Error inviting candidate: ${error.message}`);
+                        // Continue with next candidate
+                        fullProfileButton = await this.getAllFullProfileButtons(page, invitationStar);
+                    }
+                }
             }
 
             const message = this.invited > 0 
@@ -333,27 +414,65 @@ class JobbankInviterService {
 
     async goToJobPost(page, jobId, itemsPerPage) {
         this.logger(`Navigating to advertisement id ${jobId}...`);
-        await randomDelay('before go to job post');
-        const url = `https://employer.jobbank.gc.ca/employer/match/dashboard/${jobId}`;
-        await page.goto(url);
-        await randomDelay('after go to job post');
-        await page.waitForLoadState('networkidle', { timeout: this.timeout });
+        
+        // Navigation with retry for network issues
+        await this.retryWithStatus(async () => {
+            await randomDelay('before go to job post');
+            const url = `https://employer.jobbank.gc.ca/employer/match/dashboard/${jobId}`;
+            await page.goto(url);
+            await randomDelay('after go to job post');
+            await page.waitForLoadState('networkidle', { timeout: this.timeout });
+        }, 3, 'Page navigation');
 
-        const navigateCheckSuccess = await this.checkSuccess(
-            page,
-            'a.app-name:text("Job Bank")',
+        // Check for obvious errors first (don't retry these)
+        const errorSelectors = [
             'h1:text("HTTP Error 404 - Not Found")',
-            'span.objectStatus.stateNeutral:text("Job posting pending review")'
-        );
-        if (!navigateCheckSuccess) {
-            this.logger(`Job post ${jobId} not found or Job post is pending. Please check it in Job Posts.`);
-            this.errors.push(`Job post ${jobId} not found or Job post is pending. Please check it in Job Posts.`);
+            'span.objectStatus.stateNeutral:text("Job posting pending review")',
+            'h1:contains("Page not found")',
+            'h1:contains("Invalid")',
+            '.error-message',
+            'h1:contains("Error")'
+        ];
+        
+        for (const selector of errorSelectors) {
+            try {
+                if (await page.$(selector)) {
+                    const errorMsg = `Job post ${jobId} not found or Job post is pending. Please check it in Job Posts.`;
+                    this.logger(errorMsg);
+                    this.errors.push(errorMsg);
+                    return false;
+                }
+            } catch (e) {
+                // Selector might not exist, continue checking
+            }
+        }
+
+        // Check if we have the expected job bank interface
+        const hasJobBankInterface = await page.$('a.app-name:text("Job Bank")');
+        if (!hasJobBankInterface) {
+            const errorMsg = `Job post ${jobId} not found or invalid. Please check it in Job Posts.`;
+            this.logger(errorMsg);
+            this.errors.push(errorMsg);
             return false;
         }
 
-        await page.selectOption('select[name="matchlistpanel_length"]', String(itemsPerPage));
-        await page.waitForLoadState('networkidle', { timeout: this.timeout });
-        await this.sortScore(page);
+        // Verify the candidate table exists (key indicator of valid job post)
+        try {
+            await page.waitForSelector('select[name="matchlistpanel_length"]', { timeout: 10000 });
+        } catch (error) {
+            const errorMsg = `Job post ${jobId} not found or has no candidates. Please check it in Job Posts.`;
+            this.logger(errorMsg);
+            this.errors.push(errorMsg);
+            return false;
+        }
+
+        // Page setup with retry for temporary loading issues
+        await this.retryWithStatus(async () => {
+            await page.selectOption('select[name="matchlistpanel_length"]', String(itemsPerPage));
+            await page.waitForLoadState('networkidle', { timeout: this.timeout });
+            await this.sortScore(page);
+        }, 3, 'Page setup');
+        
         this.logger(`Successfully navigated to advertisement id ${jobId}`);
         return true;
     }
@@ -373,24 +492,30 @@ class JobbankInviterService {
 
     async getAllFullProfileButtons(page, invitationStar) {
         this.logger(`Searching for candidates with score >= ${invitationStar}...`);
-        let fullProfileButton = await this.getFullProfileButton(page, invitationStar);
         
-        if (!fullProfileButton) {
-            while (await this.hasNext(page)) {
-                fullProfileButton = await this.getNextPage(page, invitationStar);
-                if (fullProfileButton) {
-                    break;
+        return await this.retryWithStatus(async () => {
+            let fullProfileButton = await this.getFullProfileButton(page, invitationStar);
+            
+            if (!fullProfileButton) {
+                while (await this.hasNext(page)) {
+                    fullProfileButton = await this.getNextPage(page, invitationStar);
+                    if (fullProfileButton) {
+                        break;
+                    }
                 }
             }
-        }
-        return fullProfileButton;
+            return fullProfileButton;
+        }, 3, 'Candidate search');
     }
 
     async getNextPage(page, invitationStar) {
         this.logger('Moving to next page...');
-        await page.click('#matchlistpanel_next');
-        await page.waitForLoadState('networkidle', { timeout: this.timeout });
-        return await this.getFullProfileButton(page, invitationStar);
+        
+        return await this.retryWithStatus(async () => {
+            await page.click('#matchlistpanel_next');
+            await page.waitForLoadState('networkidle', { timeout: this.timeout });
+            return await this.getFullProfileButton(page, invitationStar);
+        }, 3, 'Page navigation');
     }
 
     async getFullProfileButton(page, invitationStar) {
