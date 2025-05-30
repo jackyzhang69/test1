@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const { connectMongo } = require('../config');
+const databaseService = require('./database.service');
 
 const securityQuestions = [
     "What is the name of your first pet?",
@@ -130,31 +130,31 @@ class Jobbank extends JobbankData {
     }
 
     static async findOne(query) {
-        const db = await connectMongo();
-        return await db.collection('jobbank').findOne(query);
+        const collection = await databaseService.getCollection('jobbank');
+        return await collection.findOne(query);
     }
 
     static async find(query) {
-        const db = await connectMongo();
-        return await db.collection('jobbank').find(query).toArray();
+        const collection = await databaseService.getCollection('jobbank');
+        return await collection.find(query).toArray();
     }
 
     static async getById(id) {
         const { ObjectId } = require('mongodb');
-        const db = await connectMongo();
-        return await db.collection('jobbank').findOne({ _id: new ObjectId(id) });
+        const collection = await databaseService.getCollection('jobbank');
+        return await collection.findOne({ _id: new ObjectId(id) });
     }
 
     async save() {
-        const db = await connectMongo();
+        const collection = await databaseService.getCollection('jobbank');
         if (this._id) {
-            return await db.collection('jobbank').updateOne(
+            return await collection.updateOne(
                 { _id: this._id },
                 { $set: this },
                 { upsert: true }
             );
         } else {
-            const result = await db.collection('jobbank').insertOne(this);
+            const result = await collection.insertOne(this);
             this._id = result.insertedId;
             return result;
         }

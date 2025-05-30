@@ -3,7 +3,7 @@
 const { expect } = require('@playwright/test'); // for toBeVisible etc. (Playwright Test)
 const fs = require('fs');
 const path = require('path');
-const { download_from_s3 } = require('./s3'); // 修改这里，从 s3Client 改为 s3
+const { download_from_s3 } = require('../utils/s3');
 // const { FillerGraph } = require('./fillerGraph');  // If needed for references
 // date/time formatting
 function currentTimeString() {

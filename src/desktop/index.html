@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>FormBro</title>
+  <base href="../">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
@@ -234,6 +235,11 @@
     </div>
   </div>
 
-  <script src="renderer.js"></script>
+  <script>
+    // Debug: Check if files are loadable
+    console.log('Current location:', window.location.href);
+    console.log('Document base URI:', document.baseURI);
+  </script>
+  <script src="desktop/renderer.js"></script>
 </body>
 </html>

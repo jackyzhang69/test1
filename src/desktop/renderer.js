@@ -545,14 +545,21 @@ function displayInvitationStats() {
 async function handleLogin(e) {
   e.preventDefault();
   
+  console.log('=== LOGIN ATTEMPT ===');
+  
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
   const errorMessage = DOM_ELEMENTS.errorMessage();
   
+  console.log('Email:', email);
+  console.log('window.api.login available:', typeof window.api?.login);
+  
   errorMessage.textContent = '';
   
   try {
+    console.log('Calling window.api.login...');
     const result = await window.api.login({ email, password });
+    console.log('Login result:', result);
     
     if (result.success) {
       currentUser = result.user;
@@ -841,6 +848,11 @@ function addButtonClickEffect(button) {
 // 初始化
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== DOM Content Loaded ===');
+  
+  // Debug: Check if window.api is available
+  console.log('window.api available:', !!window.api);
+  console.log('window.api methods:', window.api ? Object.keys(window.api) : 'undefined');
+  console.log('window.electron available:', !!window.electron);
   
   // Initialize theme system
   initializeTheme();

@@ -1,6 +1,5 @@
 const { chromium } = require('playwright');
-const { Jobbank } = require('./jobbank');
-const s3 = require('../s3');
+const { Jobbank } = require('./jobbank.service');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -9,7 +8,7 @@ const randomDelay = async (msg = "", minSeconds = 1, maxSeconds = 5) => {
     await sleep(Math.random() * (maxSeconds - minSeconds) * 1000 + minSeconds * 1000);
 };
 
-class JobbankInviter {
+class JobbankInviterService {
     constructor(jobbank, logger = console.log, timeout = 100000) {
         this.jobbank = jobbank;
         this.invited = 0;
@@ -438,4 +437,4 @@ class JobbankInviter {
     }
 }
 
-module.exports = { JobbankInviter };
+module.exports = { JobbankInviterService };

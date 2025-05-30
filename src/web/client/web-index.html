@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>FormBro - Web Version</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <!-- Dark Mode Toggle -->
+  <div class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
+    <i class="fas fa-moon" id="themeIcon"></i>
+  </div>
+  
+  <!-- Login Interface -->
+  <div id="login-container" class="login-container">
+    <div class="login-box">
+      <img src="assets/logo-light.png" alt="FormBro Logo" class="logo">
+      <h1>Welcome to FormBro Web</h1>
+      <p class="subtitle">Please login to continue</p>
+      <p class="version-info">Web Version</p>
+      
+      <form id="loginForm" class="login-form">
+        <div class="input-group">
+          <input type="email" id="email" placeholder="Email" required>
+        </div>
+        <div class="input-group">
+          <input type="password" id="password" placeholder="Password" required>
+        </div>
+        <button type="submit" class="login-button">Login</button>
+      </form>
+      
+      <div id="errorMessage" class="error-message"></div>
+    </div>
+  </div>
+
+  <!-- Main Interface -->
+  <div id="app-container" class="app-container hidden">
+    <!-- Top Navigation Bar -->
+    <div class="top-navbar">
+      <div class="navbar-left">
+        <img src="assets/logo-light.png" alt="FormBro Logo" class="navbar-logo logo">
+        <div class="tab-navigation">
+          <button class="tab-button active" data-tab="form-filling">Form Filling</button>
+          <!-- Jobbank Inviter hidden in web version -->
+        </div>
+      </div>
+      <div class="navbar-right">
+        <!-- Exit button hidden in web version -->
+        <span class="web-version-badge">Web Version</span>
+      </div>
+    </div>
+
+    <!-- Form Filling Tab -->
+    <div id="form-filling-tab" class="tab-content active">
+      <div class="form-filling-box">
+        <h2>Select Application</h2>
+        <p class="section-subtitle">Choose form to fill automatically</p>
+      
+      <div class="form-controls">
+        <select id="application-select" class="application-select">
+          <option value="">Select an application...</option>
+        </select>
+        <div class="form-filling">
+          <div class="settings-container">
+            <div class="setting-item">
+              <label for="timeout" title="Setting timeout amount when stuck">Timeout (seconds):</label>
+              <input type="number" id="timeout" value="30" min="1" max="300" title="Setting timeout amount when stuck">
+            </div>
+            <div class="setting-item">
+              <div class="checkbox-wrapper">
+                <input type="checkbox" id="headlessMode" checked>
+                <span>Do not show browser window</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="button-container">
+            <button id="fillFormBtn" class="action-button primary-button">
+              <i class="fas fa-play"></i>
+              Fill Form
+            </button>
+            <button id="refreshButton" class="action-button refresh-button" title="Refresh database">
+              Refresh
+            </button>
+            <button id="deleteButton" class="action-button danger-button">
+              <i class="fas fa-trash"></i>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div id="form-details" class="form-details"></div>
+      <div class="progress-container">
+        <div class="progress">
+          <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+        </div>
+      </div>
+      <div class="callback-container">
+        <div id="messageList" class="message-list"></div>
+        <pre id="callbackInfo" class="callback-info"></pre>
+      </div>
+      
+      <!-- Web Version Notice -->
+      <div class="web-notice">
+        <i class="fas fa-info-circle"></i>
+        <strong>Web Version:</strong> Some features may be limited compared to the desktop version. 
+        For full functionality, please use the desktop application.
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- IMPORTANT: Use web-renderer.js instead of renderer.js -->
+  <script src="web-renderer.js"></script>
+  
+  <style>
+    .web-version-badge {
+      background: var(--primary-color);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .web-notice {
+      margin-top: 20px;
+      padding: 12px;
+      background: var(--info-background, #e3f2fd);
+      border: 1px solid var(--info-border, #1976d2);
+      border-radius: 6px;
+      font-size: 14px;
+      color: var(--info-text, #1565c0);
+    }
+    
+    .web-notice i {
+      margin-right: 8px;
+    }
+    
+    .dark-mode .web-notice {
+      background: #1a237e;
+      border-color: #3f51b5;
+      color: #e3f2fd;
+    }
+    
+    .log-message {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      margin: 4px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      background: var(--log-background, #f5f5f5);
+      border-left: 3px solid var(--log-border, #ddd);
+    }
+    
+    .log-message .timestamp {
+      color: var(--text-secondary);
+      margin-right: 8px;
+      font-weight: 500;
+    }
+    
+    .log-message .action {
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-right: 8px;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+    
+    .action-goto { background: #2196f3; color: white; }
+    .action-fill { background: #4caf50; color: white; }
+    .action-click { background: #ff9800; color: white; }
+    .action-pause { background: #9c27b0; color: white; }
+    .action-error { background: #f44336; color: white; }
+    .action-complete { background: #4caf50; color: white; }
+    
+    .log-message .text {
+      flex: 1;
+      color: var(--text-primary);
+    }
+    
+    .dark-mode .log-message {
+      background: #2a2a2a;
+      border-left-color: #555;
+    }
+  </style>
+</body>
+</html>

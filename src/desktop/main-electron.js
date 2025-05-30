@@ -4,13 +4,13 @@
 */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const { login } = require('./auth');
-const { connectMongo } = require('./config');
-const { chromium } = require('playwright');
-const { FormFillingData } = require('./form_filling_data');
-const { WebFiller } = require('./webfiller');
-const { MongoClient, ObjectId } = require('mongodb');
-const { loadEnvConfig } = require('./config');
+// Import shared services
+const authService = require('../shared/services/auth.service');
+const formService = require('../shared/services/form.service');
+const formFillingService = require('../shared/services/form-filling.service');
+const databaseService = require('../shared/services/database.service');
+const { loadEnvConfig } = require('../shared/utils/config');
+const { ObjectId } = require('mongodb');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
@@ -25,12 +25,15 @@ console.log('Current directory:', __dirname);
 
 // 将 mainWindow 声明为全局变量
 let mainWindow = null;
-let db;
+// Database now handled by shared service
 let updateDownloaded = false; // Track if an update has been downloaded
 
 // Configure auto-updater
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
+
+// Suppress harmless AWS SDK v2 warning
+process.env.AWS_SDK_JS_SUPPRESS_MAINTENANCE_MODE_MESSAGE = '1';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
@@ -113,7 +116,7 @@ function getScreenshotDir() {
 async function createWindow() {
   console.log('Creating window...');
   const preloadPath = app.isPackaged 
-    ? path.join(app.getAppPath(), 'src', 'preload.js')
+    ? path.join(app.getAppPath(), 'src', 'desktop', 'preload.js')
     : path.join(__dirname, 'preload.js');
 
   mainWindow = new BrowserWindow({
@@ -131,11 +134,17 @@ async function createWindow() {
   try {
     console.log('Attempting to load index.html...');
     const htmlPath = app.isPackaged
-      ? path.join(app.getAppPath(), 'src', 'index.html')
+      ? path.join(app.getAppPath(), 'src', 'desktop', 'index.html')
       : path.join(__dirname, 'index.html');
     console.log('HTML path:', htmlPath);
     await mainWindow.loadFile(htmlPath);
     console.log('index.html loaded successfully.');
+    
+    // Open DevTools in development mode
+    if (process.env.NODE_ENV === 'development') {
+      mainWindow.webContents.openDevTools();
+    }
+    
     mainWindow.show();
     console.log('Window is now shown.');
     mainWindow.focus();
@@ -155,9 +164,9 @@ async function createWindow() {
 async function initMongoDB() {
   console.log('Attempting MongoDB connection...');
   try {
-    const db = await connectMongo();
-    console.log('MongoDB initialized successfully');
-    return db;
+    await databaseService.connect();
+    console.log('MongoDB initialized successfully via shared service');
+    return true;
   } catch (error) {
     console.error('Failed to initialize MongoDB:', error);
     throw error;
@@ -179,8 +188,8 @@ console.log('App starting...');
 app.whenReady().then(async () => {
   try {
     console.log('Initializing MongoDB...');
-    // 先初始化数据库
-    db = await initMongoDB();
+    // Initialize database using shared service
+    await initMongoDB();
     console.log('MongoDB connected successfully');
 
     console.log('Creating window...');
@@ -228,8 +237,7 @@ app.on('activate', () => {
 // IPC handlers
 ipcMain.handle('login', async (event, { email, password }) => {
   try {
-    const result = await login(email, password);
-    const user = Array.isArray(result) ? result[0] : result;
+    const user = await authService.login(email, password);
     if (!user) throw new Error("Login failed");
     return { success: true, user: user };
   } catch (error) {
@@ -253,13 +261,17 @@ ipcMain.handle('check-for-updates', async () => {
 
 ipcMain.handle('fetchFormData', async (event, userId) => {
   try {
-    if (!db) throw new Error("Database not connected");
+    // Convert userId to string format (handle different input types)
+    let userIdStr;
+    if (typeof userId === 'string') {
+      userIdStr = userId;
+    } else if (userId.buffer) {
+      userIdStr = Buffer.from(userId.buffer).toString('hex');
+    } else {
+      userIdStr = String(userId);
+    }
     
-    // 修复：直接使用 buffer 属性
-    const userIdStr = Buffer.from(userId.buffer).toString('hex');
-    
-    const formFillingData = await db.collection('formfillingdata')
-      .find({ user_id: userIdStr }).toArray();
+    const formFillingData = await formService.getFormDataByUserId(userIdStr);
     return { success: true, data: formFillingData };
   } catch (error) {
     console.error('Error in fetchFormData:', error);
@@ -269,67 +281,20 @@ ipcMain.handle('fetchFormData', async (event, userId) => {
 
 ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
   try {
-    // Create screenshots directory if it doesn't exist
-    const screenshotDir = getScreenshotDir();
-    if (!fs.existsSync(screenshotDir)) {
-      fs.mkdirSync(screenshotDir, { recursive: true });
-    }
-    console.log('Screenshot directory:', screenshotDir);
-
-    let executablePath;
-    
-    if (app.isPackaged) {
-      const browserPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ms-playwright');
-      
-      if (process.platform === 'win32') {
-        // Windows: find chrome.exe inside version-specific folder
-        const chromiumDir = fs.readdirSync(browserPath)
-          .find(dir => dir.startsWith('chromium-'));
-        executablePath = path.join(browserPath, chromiumDir, 'chrome-win', 'chrome.exe');
-      } else if (process.platform === 'darwin') {
-        // macOS: find Chromium.app inside version-specific folder
-        const chromiumDir = fs.readdirSync(browserPath)
-          .find(dir => dir.startsWith('chromium-'));
-        executablePath = path.join(browserPath, chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
-      }
-      
-      console.log('Using Chromium executable:', executablePath);
-    }
-
-    const browser = await chromium.launch({ 
-      headless,
-      executablePath
-    });
-    
-    const page = await browser.newPage();
-
-    // 创建一个回调函数来发送进度信息
-    const logger = (info) => {
+    // Create progress callback to send updates to renderer
+    const progressCallback = (info) => {
       mainWindow.webContents.send('callback-info', info);
     };
 
-    // 创建一个获取数据的函数
-    const fetch_func = async (field_name) => {
-      return formData[field_name];
-    };
-
-    const filler = new WebFiller(
-      formData,
-      fetch_func,
-      null,
-      false,
-      logger,
-      timeout,
-      screenshotDir  // Pass screenshot directory to WebFiller
-    );
-
-    filler.actions = formData.actions;
-    const result = await filler.fill(page);
+    // Use shared form filling service
+    const result = await formFillingService.runFormFilling(formData, {
+      headless: headless,
+      timeout: timeout || 30,
+      progressCallback: progressCallback,
+      logger: progressCallback
+    });
     
-    // 关闭浏览器
-    await browser.close();
-    
-    return { success: true, result };
+    return result;
   } catch (error) {
     console.error('Form filling error:', error);
     return { 
@@ -341,13 +306,17 @@ ipcMain.handle('runFormFiller', async (event, formData, headless, timeout) => {
 
 ipcMain.handle('delete-form-data', async (event, id) => {
     try {
-        // Convert the buffer directly to ObjectId instead of hex string
-        const objectId = new ObjectId(id.buffer);
-        const result = await db.collection('formfillingdata').deleteOne({
-            _id: objectId
-        });
+        // Handle different ID formats
+        let formId;
+        if (id.buffer) {
+            formId = new ObjectId(id.buffer);
+        } else {
+            formId = id;
+        }
         
-        if (result.deletedCount === 1) {
+        const deleted = await formService.deleteFormData(formId);
+        
+        if (deleted) {
             return true;
         } else {
             throw new Error('Document not found');
@@ -361,14 +330,16 @@ ipcMain.handle('delete-form-data', async (event, id) => {
 // Jobbank inviter handlers
 ipcMain.handle('fetchJobbankAccounts', async (event, userId) => {
   try {
-    if (!db) throw new Error("Database not connected");
     
-    // RCIC collection uses owner_ids array with ObjectId
-    const userIdStr = Buffer.from(userId.buffer).toString('hex');
-    const userObjectId = new ObjectId(userIdStr);
+    // Convert userId to string and get RCIC accounts using shared service
+    let userIdStr;
+    if (userId.buffer) {
+      userIdStr = Buffer.from(userId.buffer).toString('hex');
+    } else {
+      userIdStr = String(userId);
+    }
     
-    const rcicAccounts = await db.collection('rcic')
-      .find({ owner_ids: userObjectId }).toArray();
+    const rcicAccounts = await formService.getRcicAccountsByUserId(userIdStr);
     return { success: true, data: rcicAccounts };
   } catch (error) {
     console.error('Error fetching RCIC accounts:', error);
@@ -379,8 +350,8 @@ ipcMain.handle('fetchJobbankAccounts', async (event, userId) => {
 ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationStar, itemsPerPage, headless, timeout) => {
   try {
 
-    const { Jobbank } = require('./inviter/jobbank');
-    const { JobbankInviter } = require('./inviter/inviter');
+    const { Jobbank } = require('../shared/services/jobbank.service');
+    const { JobbankInviterService } = require('../shared/services/jobbank-inviter.service');
     
     // Convert RCIC data to jobbank format
     const jobbank = new Jobbank();
@@ -416,7 +387,7 @@ ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationSta
     };
 
     // Create inviter instance
-    const inviter = new JobbankInviter(jobbank, logger, timeout * 1000);
+    const inviter = new JobbankInviterService(jobbank, logger, timeout * 1000);
     
     // Add progress callback for candidate processing
     inviter.progressCallback = (current, total) => {
@@ -504,8 +475,8 @@ ipcMain.handle('runJobbankInviter', async (_, rcicData, jobPostId, invitationSta
 
 ipcMain.handle('runJobbankInviterMultiple', async (_, rcicData, jobPosts, itemsPerPage, headless, timeout) => {
   try {
-    const { Jobbank } = require('./inviter/jobbank');
-    const { JobbankInviter } = require('./inviter/inviter');
+    const { Jobbank } = require('../shared/services/jobbank.service');
+    const { JobbankInviterService } = require('../shared/services/jobbank-inviter.service');
     
     // Convert RCIC data to jobbank format
     const jobbank = new Jobbank();
@@ -539,7 +510,7 @@ ipcMain.handle('runJobbankInviterMultiple', async (_, rcicData, jobPosts, itemsP
     };
 
     // Create inviter instance
-    const inviter = new JobbankInviter(jobbank, logger, timeout * 1000);
+    const inviter = new JobbankInviterService(jobbank, logger, timeout * 1000);
     
     // Add progress callback for candidate processing
     inviter.progressCallback = (current, total) => {
