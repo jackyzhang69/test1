@@ -126,6 +126,44 @@ mongo "mongodb+srv://jacky:Zxy690211@noah.yi5fo.mongodb.net/visa?retryWrites=tru
 
 **状态**: ✅ **已锁定** - 未经用户批准不得修改
 
+## Chromium 打包解决方案 🔧
+
+### 🚨 跨平台 Chromium 打包问题修复
+为解决跨平台打包问题（Mac构建Windows包时Chromium不兼容），实施了完整的解决方案：
+
+#### 1. 平台特定Chromium下载
+- **智能平台检测**：基于`TARGET_PLATFORMS`环境变量自动下载目标平台Chromium
+- **分离存储**：使用`.local-chromium-win32`和`.local-chromium-darwin`独立存储
+- **验证机制**：下载后验证可执行文件存在性确保完整性
+
+#### 2. 构建脚本增强
+- **prepare-chromium.js**：支持跨平台Chromium准备
+- **prepare-chromium-cross-platform.js**：从Playwright CDN下载特定平台版本
+- **package.json**：更新构建命令包含TARGET_PLATFORMS设置
+
+#### 3. 包大小优化 ✅
+- **原问题**：Mac构建包含Mac Chromium导致Windows包不工作
+- **之前大小**：700MB（包含两个平台的Chromium）
+- **优化后**：304MB（仅包含目标平台Chromium）
+- **减少57%**：显著减少包大小和下载时间
+
+#### 4. 技术实现细节
+```bash
+# Windows构建命令（在Mac上）
+TARGET_PLATFORMS=win32 npm run dist-win
+
+# Mac构建命令（在Windows上）
+TARGET_PLATFORMS=darwin npm run dist-mac
+```
+
+#### 5. 验证结果
+- ✅ Windows包只包含`chrome-win`目录
+- ✅ 无Mac相关文件（chrome-mac）
+- ✅ 执行文件正确：`chrome.exe`和Windows DLL
+- ✅ 包大小从700MB降至304MB
+
+**状态**: ✅ **完全实施** - 解决跨平台Chromium打包问题，优化包大小
+
 ## 代码规范
 1. 调试信息只删除jobbank inviter相关的
 2. 其他功能的调试信息保留

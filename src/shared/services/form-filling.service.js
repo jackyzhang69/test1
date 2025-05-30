@@ -1,6 +1,7 @@
 const { chromium } = require('playwright');
 const FormFillingData = require('../models/form_filling_data');
 const { WebFiller } = require('../core/webfiller');
+const { getBundledChromiumPath } = require('../utils/config');
 
 class FormFillingService {
   /**
@@ -47,10 +48,24 @@ class FormFillingService {
 
       // Launch browser
       logger({ action: 'startup', message: 'Launching browser...' });
-      browser = await chromium.launch({ 
+      
+      // Get bundled Chromium path if available
+      const bundledChromiumPath = getBundledChromiumPath();
+      const launchOptions = { 
         headless: headless,
         args: ['--no-sandbox', '--disable-setuid-sandbox'] // For server environments
-      });
+      };
+      
+      // Use bundled Chromium if available (for packaged app)
+      if (bundledChromiumPath) {
+        launchOptions.executablePath = bundledChromiumPath;
+        logger({ action: 'startup', message: `✅ Using bundled Chromium: ${bundledChromiumPath}` });
+      } else {
+        logger({ action: 'startup', message: '⚠️ Using system Playwright Chromium (no bundled Chromium found)' });
+        logger({ action: 'startup', message: `PLAYWRIGHT_BROWSERS_PATH: ${process.env.PLAYWRIGHT_BROWSERS_PATH || 'not set'}` });
+      }
+      
+      browser = await chromium.launch(launchOptions);
       
       const page = await browser.newPage();
 
@@ -140,7 +155,13 @@ class FormFillingService {
   async getAutomationInfo() {
     try {
       // Test browser launch
-      const browser = await chromium.launch({ headless: true });
+      const bundledChromiumPath = getBundledChromiumPath();
+      const launchOptions = { headless: true };
+      if (bundledChromiumPath) {
+        launchOptions.executablePath = bundledChromiumPath;
+      }
+      
+      const browser = await chromium.launch(launchOptions);
       const version = await browser.version();
       await browser.close();
       

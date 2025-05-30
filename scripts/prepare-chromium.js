@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
+const { prepareChromiumCrossPlatform } = require('./prepare-chromium-cross-platform');
 
 async function getChromiumPath() {
   if (process.platform === 'win32') {
@@ -15,6 +16,40 @@ async function getChromiumPath() {
 }
 
 async function prepareChromium() {
+  // Check if we need cross-platform support
+  const targetPlatforms = process.env.TARGET_PLATFORMS;
+  
+  if (targetPlatforms) {
+    // If TARGET_PLATFORMS is set, use cross-platform approach
+    console.log(`Target platforms specified: ${targetPlatforms}`);
+    await prepareChromiumCrossPlatform();
+    
+    // Create symlink from platform-specific dir to .local-chromium
+    const targetPlatform = targetPlatforms.split(',')[0]; // Use first platform
+    const sourcePath = path.join(process.cwd(), `.local-chromium-${targetPlatform}`);
+    const destPath = path.join(process.cwd(), '.local-chromium');
+    
+    // Remove existing .local-chromium if it exists
+    if (fs.existsSync(destPath)) {
+      if (process.platform === 'win32') {
+        execSync(`rmdir /s /q "${destPath}"`, { stdio: 'inherit' });
+      } else {
+        execSync(`rm -rf "${destPath}"`, { stdio: 'inherit' });
+      }
+    }
+    
+    // Copy platform-specific chromium to .local-chromium
+    if (process.platform === 'win32') {
+      fs.cpSync(sourcePath, destPath, { recursive: true });
+    } else {
+      execSync(`cp -R "${sourcePath}" "${destPath}"`, { stdio: 'inherit' });
+    }
+    
+    console.log(`✅ Copied ${targetPlatform} Chromium to .local-chromium`);
+    return;
+  }
+  
+  // Original logic for same-platform builds
   const sourcePath = await getChromiumPath();
   const destPath = path.join(process.cwd(), '.local-chromium');
 
@@ -98,4 +133,4 @@ async function prepareChromium() {
   console.log('Latest Chromium and ffmpeg prepared for packaging');
 }
 
-prepareChromium().catch(console.error); 
+prepareChromium().catch(console.error);

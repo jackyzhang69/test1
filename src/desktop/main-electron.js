@@ -58,6 +58,17 @@ if (process.platform === 'darwin') {
   });
   
   log.info(`Setting update URL to use ${updateFile}`);
+} else if (process.platform === 'win32') {
+  autoUpdater.setFeedURL({
+    provider: 's3',
+    bucket: 'formbro-updates',
+    path: '',
+    region: 'ca-central-1',
+    updaterCacheDirName: 'formbro-updater',
+    url: 'https://formbro-updates.s3.ca-central-1.amazonaws.com/latest.yml'
+  });
+  
+  log.info('Setting update URL for Windows to use latest.yml');
 }
 
 // NOTE: The update files in S3 must be publicly accessible
@@ -88,10 +99,72 @@ if (process.platform === 'darwin') {
 
 // 配置 Playwright 的路径
 if (app.isPackaged) {
-  // 更新：在打包时，ms-playwright 被 asarUnpack 到 app.asar.unpacked 内
-  const playwrightPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'ms-playwright');
-  process.env.PLAYWRIGHT_BROWSERS_PATH = playwrightPath;
-  console.log('Setting Playwright browsers path:', process.env.PLAYWRIGHT_BROWSERS_PATH);
+  const fs = require('fs');
+  
+  // Try multiple possible paths for Chromium
+  const possiblePaths = [
+    path.join(process.resourcesPath, 'app.asar.unpacked', 'ms-playwright'),
+    path.join(process.resourcesPath, 'ms-playwright'),
+  ];
+  
+  let playwrightPath = null;
+  
+  for (const testPath of possiblePaths) {
+    if (fs.existsSync(testPath)) {
+      // Check if it contains chromium
+      try {
+        const contents = fs.readdirSync(testPath);
+        const hasChromium = contents.some(item => item.startsWith('chromium-'));
+        if (hasChromium) {
+          playwrightPath = testPath;
+          break;
+        }
+      } catch (error) {
+        // Continue to next path
+        continue;
+      }
+    }
+  }
+  
+  if (playwrightPath) {
+    process.env.PLAYWRIGHT_BROWSERS_PATH = playwrightPath;
+    console.log('✅ Setting Playwright browsers path:', playwrightPath);
+    
+    // Log available browsers for debugging
+    try {
+      const chromiumDirs = fs.readdirSync(playwrightPath)
+        .filter(item => item.startsWith('chromium-'));
+      chromiumDirs.forEach(dir => {
+        const chromiumPath = path.join(playwrightPath, dir);
+        const subDirs = fs.readdirSync(chromiumPath);
+        console.log(`  Found Chromium ${dir} with:`, subDirs.join(', '));
+        
+        // Check for executable
+        const possibleExePaths = [
+          path.join(chromiumPath, 'chrome-win', 'chrome.exe'),
+          path.join(chromiumPath, 'chrome.exe'),
+          path.join(chromiumPath, 'chrome-mac', 'Chromium.app'),
+          path.join(chromiumPath, 'Chromium.app'),
+          path.join(chromiumPath, 'chrome-linux', 'chrome'),
+          path.join(chromiumPath, 'chrome')
+        ];
+        
+        possibleExePaths.forEach(exePath => {
+          if (fs.existsSync(exePath)) {
+            console.log(`    ✅ Executable found at: ${exePath}`);
+          }
+        });
+      });
+    } catch (error) {
+      console.log('Could not list Chromium directories:', error.message);
+    }
+  } else {
+    console.log('⚠️ Playwright browsers path not found in packaged app');
+    console.log('Searched paths:');
+    possiblePaths.forEach(searchPath => {
+      console.log(`  - ${searchPath} (exists: ${fs.existsSync(searchPath)})`);
+    });
+  }
 }
 
 // 添加调试日志

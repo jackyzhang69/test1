@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
 const { Jobbank } = require('./jobbank.service');
+const { getBundledChromiumPath } = require('../utils/config');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -79,7 +80,10 @@ class JobbankInviterService {
         ];
 
         const headless = process.env.environment === 'dev' ? false : true;
-        const browser = await chromium.launch({
+        
+        // Get bundled Chromium path if available
+        const bundledChromiumPath = getBundledChromiumPath();
+        const launchOptions = {
             headless,
             args: [
                 '--no-sandbox',
@@ -89,7 +93,18 @@ class JobbankInviterService {
                 '--ignore-certifcate-errors-spki-list',
                 `--user-agent=${userAgents[Math.floor(Math.random() * userAgents.length)]}`
             ]
-        });
+        };
+        
+        // Use bundled Chromium if available (for packaged app)
+        if (bundledChromiumPath) {
+            launchOptions.executablePath = bundledChromiumPath;
+            console.log(`✅ Using bundled Chromium: ${bundledChromiumPath}`);
+        } else {
+            console.log('⚠️ Using system Playwright Chromium (no bundled Chromium found)');
+            console.log(`PLAYWRIGHT_BROWSERS_PATH: ${process.env.PLAYWRIGHT_BROWSERS_PATH || 'not set'}`);
+        }
+        
+        const browser = await chromium.launch(launchOptions);
 
         const page = await browser.newPage();
         page.setDefaultNavigationTimeout(this.timeout);
@@ -111,7 +126,10 @@ class JobbankInviterService {
         ];
 
         const headless = process.env.environment === 'dev' ? false : true;
-        const browser = await chromium.launch({
+        
+        // Get bundled Chromium path if available
+        const bundledChromiumPath = getBundledChromiumPath();
+        const launchOptions = {
             headless,
             args: [
                 '--no-sandbox',
@@ -121,7 +139,18 @@ class JobbankInviterService {
                 '--ignore-certifcate-errors-spki-list',
                 `--user-agent=${userAgents[Math.floor(Math.random() * userAgents.length)]}`
             ]
-        });
+        };
+        
+        // Use bundled Chromium if available (for packaged app)
+        if (bundledChromiumPath) {
+            launchOptions.executablePath = bundledChromiumPath;
+            console.log(`✅ Using bundled Chromium: ${bundledChromiumPath}`);
+        } else {
+            console.log('⚠️ Using system Playwright Chromium (no bundled Chromium found)');
+            console.log(`PLAYWRIGHT_BROWSERS_PATH: ${process.env.PLAYWRIGHT_BROWSERS_PATH || 'not set'}`);
+        }
+        
+        const browser = await chromium.launch(launchOptions);
 
         const page = await browser.newPage();
         page.setDefaultNavigationTimeout(this.timeout);
