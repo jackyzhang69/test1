@@ -47,6 +47,7 @@ let formDataList = [];
 let jobbankAccountsList = [];
 let jobPostCounter = 1;
 let invitationStats = {};
+let allJobResults = []; // Store all job results including failures
 
 // UI状态管理
 let currentUIState = 'empty'; // empty, ready, processing, results
@@ -133,16 +134,23 @@ function addInviterMessage(message, type = '') {
   const messageList = DOM_ELEMENTS.inviterMessageList();
   if (!messageList) return;
 
-  // For retry scenarios, keep recent messages instead of clearing all
-  if (type === 'warning' || type === 'info') {
-    // Keep the last few messages for context
-    const messages = messageList.querySelectorAll('.message-item');
-    if (messages.length > 3) {
-      messageList.innerHTML = '';
-    }
-  } else {
-    // Clear for success/error messages
+  // Don't clear messages for status updates - keep important error messages visible
+  // Only clear when explicitly needed (like at start of new process)
+  if (type === 'error' || message.includes('❌') || message.includes('ERROR')) {
+    // Keep error messages visible - don't clear
+  } else if (type === 'success' || message.includes('✅') || message.includes('Successfully') || message.includes('completed')) {
+    // Keep success messages visible - don't clear
+  } else if (message.includes('🚀 STARTING') || message.includes('Processing job post')) {
+    // Clear old messages only when starting a new job
     messageList.innerHTML = '';
+  } else {
+    // For other status messages, keep recent messages for context
+    const messages = messageList.querySelectorAll('.message-item');
+    if (messages.length > 5) {
+      // Remove oldest messages but keep recent ones
+      const oldMessages = Array.from(messages).slice(0, messages.length - 3);
+      oldMessages.forEach(msg => msg.remove());
+    }
   }
   
   const messageElement = document.createElement('div');
@@ -254,6 +262,10 @@ function resetInviterDisplay() {
   if (validationMessages) {
     validationMessages.innerHTML = '';
   }
+  
+  // Clear job results
+  invitationStats = {};
+  allJobResults = [];
   
   updateInviterProgress(0);
   resetOverallProgress();
@@ -543,23 +555,83 @@ function displayInvitationStats() {
   const statsElement = DOM_ELEMENTS.invitationStats();
   if (!statsElement) return;
   
-  const totalInvitations = Object.values(invitationStats).reduce((sum, count) => sum + count, 0);
+  if (!allJobResults || allJobResults.length === 0) {
+    // Fallback to old display if no detailed results available
+    const totalInvitations = Object.values(invitationStats).reduce((sum, count) => sum + count, 0);
+    const statsHtml = `
+      <h4>Invitation Summary</h4>
+      <div class="stats-list">
+        ${Object.entries(invitationStats).map(([jobId, count]) => {
+          return `
+            <div class="stat-line">
+              <span class="job-post-label">Job Post ${jobId}:</span>
+              <span class="invitation-count">${count} invitations sent</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      <div class="stats-total">
+        <strong>Total Invitations: ${totalInvitations}</strong>
+      </div>
+    `;
+    statsElement.innerHTML = statsHtml;
+    statsElement.classList.remove('hidden');
+    return;
+  }
+
+  // Display detailed results for all job posts
+  const successfulJobs = allJobResults.filter(r => !r.error && r.invited > 0);
+  const noInviteJobs = allJobResults.filter(r => !r.error && r.invited === 0);
+  const failedJobs = allJobResults.filter(r => r.error);
+  const totalInvitations = allJobResults.reduce((sum, job) => sum + (job.invited || 0), 0);
   
   const statsHtml = `
-    <h4>Invitation Summary</h4>
-    <div class="stats-list">
-      ${Object.entries(invitationStats).map(([jobId, count]) => {
-        return `
-          <div class="stat-line">
-            <span class="job-post-label">Job Post ${jobId}:</span>
-            <span class="invitation-count">${count} invitations sent</span>
+    <h4>Complete Job Posts Summary</h4>
+    <div class="stats-total" style="margin-bottom: 15px;">
+      <strong>Total Invitations Sent: ${totalInvitations}</strong>
+    </div>
+    
+    ${successfulJobs.length > 0 ? `
+    <div class="success-section">
+      <h5 style="color: #28a745; margin: 10px 0 5px 0;">✅ Successful Job Posts (${successfulJobs.length})</h5>
+      <div class="stats-list">
+        ${successfulJobs.map(job => `
+          <div class="stat-line success">
+            <span class="job-post-label">Job Post ${job.jobPostId}:</span>
+            <span class="invitation-count">${job.invited} invitations sent</span>
           </div>
-        `;
-      }).join('')}
+        `).join('')}
+      </div>
     </div>
-    <div class="stats-total">
-      <strong>Total Invitations: ${totalInvitations}</strong>
+    ` : ''}
+    
+    ${noInviteJobs.length > 0 ? `
+    <div class="no-invite-section">
+      <h5 style="color: #ffc107; margin: 10px 0 5px 0;">⚠️ No Invitations Sent (${noInviteJobs.length})</h5>
+      <div class="stats-list">
+        ${noInviteJobs.map(job => `
+          <div class="stat-line warning">
+            <span class="job-post-label">Job Post ${job.jobPostId}:</span>
+            <span class="invitation-count">No qualified candidates found</span>
+          </div>
+        `).join('')}
+      </div>
     </div>
+    ` : ''}
+    
+    ${failedJobs.length > 0 ? `
+    <div class="failed-section">
+      <h5 style="color: #dc3545; margin: 10px 0 5px 0;">❌ Failed Job Posts (${failedJobs.length})</h5>
+      <div class="stats-list">
+        ${failedJobs.map(job => `
+          <div class="stat-line error">
+            <span class="job-post-label">Job Post ${job.jobPostId}:</span>
+            <span class="invitation-count error-text">${job.error}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
   `;
   
   statsElement.innerHTML = statsHtml;
@@ -795,10 +867,11 @@ async function handleStartInviter() {
     );
     
     if (result.success) {
-      // Display results from all jobs
+      // Store all job results for summary display
       if (result.results && result.results.length > 0) {
+        allJobResults = result.results;
         result.results.forEach(jobResult => {
-          if (jobResult.success) {
+          if (!jobResult.error && jobResult.invited > 0) {
             invitationStats[jobResult.jobPostId] = jobResult.invited;
           }
         });
@@ -812,6 +885,12 @@ async function handleStartInviter() {
       }
     } else {
       addInviterMessage(`Error: ${result.error || 'Unknown error'}`, 'error');
+      // Store error for all job posts if complete failure
+      allJobResults = jobPosts.map(jp => ({ 
+        jobPostId: jp.jobPostId, 
+        invited: 0, 
+        error: result.error || 'Unknown error' 
+      }));
     }
     
     // 切换到结果状态

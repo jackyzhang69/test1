@@ -140,7 +140,10 @@ class JobbankInviterService {
                 this.overallProgressCallback(i, jobPosts.length, jobPostId);
             }
             
-            this.logger(`Processing job post ${jobPostId} (${i + 1}/${jobPosts.length})...`);
+            this.logger(`🚀 STARTING Job Post ${jobPostId} (${i + 1}/${jobPosts.length}) - Stars: ${minimumStars}`);
+            
+            // Force a test message to ensure logger is working
+            this.logger(`🔧 DEBUG: Logger test for job ${jobPostId} - If you see this message, logger is working correctly`);
             
             // Reset counters for this job
             const startInvited = this.invited;
@@ -149,6 +152,8 @@ class JobbankInviterService {
             if (!loggedIn) {
                 const loginSuccess = await this.loginJobbank(page);
                 if (!loginSuccess) {
+                    const errorMsg = `❌ Failed to login for job ${jobPostId}`;
+                    this.logger(errorMsg);
                     this.errors.push(`Failed to login for job ${jobPostId}`);
                     results.push({ jobPostId, invited: 0, error: 'Login failed' });
                     continue;
@@ -160,6 +165,8 @@ class JobbankInviterService {
             const navigateSuccess = await this.goToJobPost(page, jobPostId, itemsPerPage);
             if (!navigateSuccess) {
                 // Job post not found or invalid - skip this job
+                const errorMsg = `❌ Job post ${jobPostId} not found or invalid. Skipping to next job...`;
+                this.logger(errorMsg);
                 results.push({ jobPostId, invited: 0, error: 'Job post not found or invalid' });
                 continue;
             }
@@ -197,12 +204,12 @@ class JobbankInviterService {
                     fullProfileButton = await this.getAllFullProfileButtons(page, minimumStars);
                 } catch (error) {
                     if (this.isNonRetryableError(error.message)) {
-                        this.logger(`❌ Permanent error inviting candidate: ${error.message}`);
-                        this.errors.push(`Error inviting candidate: ${error.message}`);
+                        this.logger(`❌ Permanent error in job ${jobPostId}: ${error.message}. Stopping this job.`);
+                        this.errors.push(`Job ${jobPostId} - Error inviting candidate: ${error.message}`);
                         break;
                     } else {
-                        this.logger(`❌ Failed to invite candidate after retries: ${error.message}`);
-                        this.errors.push(`Error inviting candidate: ${error.message}`);
+                        this.logger(`⚠️ Failed to invite candidate in job ${jobPostId}: ${error.message}. Continuing with next candidate...`);
+                        this.errors.push(`Job ${jobPostId} - Error inviting candidate: ${error.message}`);
                         // Continue with next candidate instead of breaking
                         fullProfileButton = await this.getAllFullProfileButtons(page, minimumStars);
                     }
@@ -212,7 +219,12 @@ class JobbankInviterService {
             const invitedForThisJob = this.invited - startInvited;
             results.push({ jobPostId, invited: invitedForThisJob });
             
-            this.logger(`Completed job ${jobPostId}: ${invitedForThisJob} invitations sent`);
+            // Send detailed completion message
+            if (invitedForThisJob > 0) {
+                this.logger(`✅ Completed job ${jobPostId}: ${invitedForThisJob} invitations sent successfully`);
+            } else {
+                this.logger(`⚠️ Completed job ${jobPostId}: No invitations sent (no qualifying candidates found)`);
+            }
             
             // Send job completion callback
             if (this.jobCompleteCallback) {
@@ -226,6 +238,38 @@ class JobbankInviterService {
         }
         
         await browser.close();
+        
+        // Send detailed final summary
+        const successfulJobs = results.filter(r => r.invited > 0);
+        const failedJobs = results.filter(r => r.error);
+        const noInvitesJobs = results.filter(r => !r.error && r.invited === 0);
+        
+        this.logger(`📊 === FINAL SUMMARY ===`);
+        this.logger(`总计处理 ${jobPosts.length} 个 job posts，发送 ${this.invited} 个邀请`);
+        
+        if (successfulJobs.length > 0) {
+            this.logger(`✅ 成功的 Job Posts (${successfulJobs.length}个):`);
+            successfulJobs.forEach(job => {
+                this.logger(`  • Job ${job.jobPostId}: ${job.invited} 个邀请发送成功`);
+            });
+        }
+        
+        if (noInvitesJobs.length > 0) {
+            this.logger(`⚠️ 无邀请发送的 Job Posts (${noInvitesJobs.length}个):`);
+            noInvitesJobs.forEach(job => {
+                this.logger(`  • Job ${job.jobPostId}: 没有符合条件的候选人`);
+            });
+        }
+        
+        if (failedJobs.length > 0) {
+            this.logger(`❌ 失败的 Job Posts (${failedJobs.length}个):`);
+            failedJobs.forEach(job => {
+                this.logger(`  • Job ${job.jobPostId}: ${job.error}`);
+            });
+        }
+        
+        this.logger(`======================`);
+        
         return { results, totalInvited: this.invited, errors: this.errors };
     }
 
@@ -413,16 +457,38 @@ class JobbankInviterService {
     }
 
     async goToJobPost(page, jobId, itemsPerPage) {
-        this.logger(`Navigating to advertisement id ${jobId}...`);
+        this.logger(`🔄 Navigating to advertisement id ${jobId}...`);
         
         // Navigation with retry for network issues
-        await this.retryWithStatus(async () => {
-            await randomDelay('before go to job post');
-            const url = `https://employer.jobbank.gc.ca/employer/match/dashboard/${jobId}`;
-            await page.goto(url);
-            await randomDelay('after go to job post');
-            await page.waitForLoadState('networkidle', { timeout: this.timeout });
-        }, 3, 'Page navigation');
+        try {
+            await this.retryWithStatus(async () => {
+                await randomDelay('before go to job post');
+                const url = `https://employer.jobbank.gc.ca/employer/match/dashboard/${jobId}`;
+                this.logger(`📍 Loading URL: ${url}`);
+                await page.goto(url);
+                await randomDelay('after go to job post');
+                await page.waitForLoadState('networkidle', { timeout: this.timeout });
+            }, 3, 'Page navigation');
+        } catch (error) {
+            const errorMsg = `❌ Failed to navigate to job post ${jobId}: ${error.message}`;
+            this.logger(errorMsg);
+            this.errors.push(errorMsg);
+            return false;
+        }
+
+        // Get page title and URL for debugging
+        const pageTitle = await page.title();
+        const currentUrl = page.url();
+        const expectedUrl = `https://employer.jobbank.gc.ca/employer/match/dashboard/${jobId}`;
+        this.logger(`📄 Page loaded - Title: "${pageTitle}", URL: ${currentUrl}`);
+        
+        // Check if we were redirected away from the job post
+        if (!currentUrl.includes(`/dashboard/${jobId}`)) {
+            const errorMsg = `❌ Job post ${jobId} - Page redirected to ${currentUrl}. This job post may not exist or you may not have access to it.`;
+            this.logger(errorMsg);
+            this.errors.push(errorMsg);
+            return false;
+        }
 
         // Check for obvious errors first (don't retry these)
         const errorSelectors = [
@@ -431,13 +497,20 @@ class JobbankInviterService {
             'h1:contains("Page not found")',
             'h1:contains("Invalid")',
             '.error-message',
-            'h1:contains("Error")'
+            'h1:contains("Error")',
+            'h1:contains("not found")',
+            'h2:contains("not found")',
+            '.alert-danger',
+            '.error'
         ];
         
+        this.logger(`🔍 Checking for error indicators on page...`);
         for (const selector of errorSelectors) {
             try {
-                if (await page.$(selector)) {
-                    const errorMsg = `Job post ${jobId} not found or Job post is pending. Please check it in Job Posts.`;
+                const element = await page.$(selector);
+                if (element) {
+                    const text = await element.textContent();
+                    const errorMsg = `❌ Job post ${jobId} error detected: "${text}". Please check it in Job Posts.`;
                     this.logger(errorMsg);
                     this.errors.push(errorMsg);
                     return false;
@@ -448,32 +521,61 @@ class JobbankInviterService {
         }
 
         // Check if we have the expected job bank interface
+        this.logger(`🔍 Checking for Job Bank interface...`);
         const hasJobBankInterface = await page.$('a.app-name:text("Job Bank")');
         if (!hasJobBankInterface) {
-            const errorMsg = `Job post ${jobId} not found or invalid. Please check it in Job Posts.`;
+            const errorMsg = `❌ Job post ${jobId} - Job Bank interface not found. This may be an invalid job post or permission issue.`;
             this.logger(errorMsg);
             this.errors.push(errorMsg);
             return false;
         }
+        this.logger(`✅ Job Bank interface found`);
 
         // Verify the candidate table exists (key indicator of valid job post)
+        this.logger(`🔍 Checking for candidate matching table...`);
         try {
             await page.waitForSelector('select[name="matchlistpanel_length"]', { timeout: 10000 });
+            this.logger(`✅ Candidate matching table found`);
         } catch (error) {
-            const errorMsg = `Job post ${jobId} not found or has no candidates. Please check it in Job Posts.`;
+            // This is a critical failure - no candidate table means invalid job post
+            const bodyText = await page.textContent('body').catch(() => 'Unable to read page content');
+            
+            // Check if we're on the dashboard homepage (common redirect for invalid job posts)
+            if (currentUrl.includes('/employer/dashboard') && !currentUrl.includes(`/dashboard/${jobId}`)) {
+                const errorMsg = `❌ Job post ${jobId} - Redirected to dashboard homepage. This job post ID does not exist.`;
+                this.logger(errorMsg);
+                this.errors.push(errorMsg);
+                return false;
+            }
+            
+            const errorMsg = `❌ Job post ${jobId} - No candidate matching table found. This job post may not exist, be inactive, or have no candidates available.`;
             this.logger(errorMsg);
+            this.logger(`📋 Page content preview: ${bodyText.substring(0, 300)}...`);
             this.errors.push(errorMsg);
             return false;
         }
 
         // Page setup with retry for temporary loading issues
+        this.logger(`⚙️ Setting up page for job post ${jobId}...`);
         await this.retryWithStatus(async () => {
             await page.selectOption('select[name="matchlistpanel_length"]', String(itemsPerPage));
             await page.waitForLoadState('networkidle', { timeout: this.timeout });
             await this.sortScore(page);
         }, 3, 'Page setup');
         
-        this.logger(`Successfully navigated to advertisement id ${jobId}`);
+        // Final validation before declaring success
+        const finalUrl = page.url();
+        const hasMatchTable = await page.$('select[name="matchlistpanel_length"]');
+        
+        if (!finalUrl.includes(`/dashboard/${jobId}`) || !hasMatchTable) {
+            const errorMsg = `❌ FINAL CHECK FAILED for job post ${jobId} - URL: ${finalUrl}, HasMatchTable: ${!!hasMatchTable}`;
+            this.logger(errorMsg);
+            this.errors.push(errorMsg);
+            return false;
+        }
+        
+        this.logger(`✅ Successfully navigated to and set up job post ${jobId} - Ready to process candidates`);
+        this.logger(`🔧 FINAL DEBUG: Job ${jobId} passed all checks - URL contains ${jobId}: ${finalUrl.includes(`/dashboard/${jobId}`)}, Match table exists: ${!!hasMatchTable}`);
         return true;
     }
 
