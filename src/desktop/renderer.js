@@ -31,6 +31,7 @@ const DOM_ELEMENTS = {
   refreshRcicBtn: () => document.getElementById('refreshRcicBtn'),
   inviterProgressBar: () => document.getElementById('inviterProgressBar'),
   inviterMessageList: () => document.getElementById('inviterMessageList'),
+  inviterValidationMessages: () => document.getElementById('inviter-validation-messages'),
   // New elements for multiple job posts
   addJobPostBtn: () => document.getElementById('add-job-post-btn'),
   jobPostsList: () => document.getElementById('job-posts-list'),
@@ -154,6 +155,23 @@ function addInviterMessage(message, type = '') {
   messageElement.scrollIntoView({ behavior: 'smooth' });
 }
 
+function addValidationMessage(message, type = '') {
+  const messageList = DOM_ELEMENTS.inviterValidationMessages();
+  if (!messageList) return;
+
+  // Clear previous validation messages
+  messageList.innerHTML = '';
+  
+  const messageElement = document.createElement('div');
+  messageElement.className = `message-item ${type}`;
+  messageElement.textContent = message;
+  
+  messageList.appendChild(messageElement);
+  
+  // Auto-scroll to latest message
+  messageElement.scrollIntoView({ behavior: 'smooth' });
+}
+
 function updateInviterCallbackInfo(info) {
   if (info.progress !== undefined) {
     updateInviterProgress(info.progress);
@@ -230,6 +248,13 @@ function resetInviterDisplay() {
   if (messageList) {
     messageList.innerHTML = '';
   }
+  
+  // Clear validation messages too
+  const validationMessages = DOM_ELEMENTS.inviterValidationMessages();
+  if (validationMessages) {
+    validationMessages.innerHTML = '';
+  }
+  
   updateInviterProgress(0);
   resetOverallProgress();
   resetCurrentJobProgress();
@@ -644,7 +669,7 @@ function setupTabNavigation() {
 async function handleRefreshJobbanks() {
   try {
     if (!currentUser) {
-      addInviterMessage('Please login first', 'error');
+      addValidationMessage('Please login first', 'error');
       return;
     }
 
@@ -655,13 +680,18 @@ async function handleRefreshJobbanks() {
     if (rcicResponse.success) {
       jobbankAccountsList = rcicResponse.data;
       populateRcicAccountSelect(jobbankAccountsList);
-      addInviterMessage(`Refreshed,found ${jobbankAccountsList.length} RCIC accounts`, 'success');
+      addValidationMessage(`Refreshed, found ${jobbankAccountsList.length} RCIC accounts`, 'success');
+      
+      // Clear the success message after 3 seconds
+      setTimeout(() => {
+        DOM_ELEMENTS.inviterValidationMessages().innerHTML = '';
+      }, 3000);
     } else {
-      addInviterMessage(rcicResponse.error || 'Failed to refresh RCIC accounts', 'error');
+      addValidationMessage(rcicResponse.error || 'Failed to refresh RCIC accounts', 'error');
     }
   } catch (error) {
     console.error('Refresh Jobbank accounts error:', error);
-    addInviterMessage('An error occurred while refreshing', 'error');
+    addValidationMessage('An error occurred while refreshing', 'error');
   }
 }
 
@@ -676,14 +706,14 @@ async function handleStartInviter() {
   
   // 1. Check RCIC account selection
   if (!selectedIndex || selectedIndex === '') {
-    addInviterMessage('❌ Please select a Jobbank/RCIC account before starting', 'error');
+    addValidationMessage('❌ Please select a Jobbank/RCIC account before starting', 'error');
     return;
   }
 
   // 2. Check if any job posts are entered
   const allRows = DOM_ELEMENTS.jobPostsList()?.querySelectorAll('.job-post-row') || [];
   if (allRows.length === 0) {
-    addInviterMessage('❌ Please add at least one job post using the "Add" button', 'error');
+    addValidationMessage('❌ Please add at least one job post using the "Add" button', 'error');
     return;
   }
 
@@ -707,28 +737,33 @@ async function handleStartInviter() {
   // 4. Validate job post IDs
   if (emptyJobPosts.length > 0) {
     const rowText = emptyJobPosts.length === 1 ? 'row' : 'rows';
-    addInviterMessage(`❌ Job Post ID is required in ${rowText} ${emptyJobPosts.join(', ')}`, 'error');
+    addValidationMessage(`❌ Job Post ID is required in ${rowText} ${emptyJobPosts.join(', ')}`, 'error');
     return;
   }
 
   // 5. Validate minimum stars
   if (invalidStars.length > 0) {
     const rowText = invalidStars.length === 1 ? 'row' : 'rows';
-    addInviterMessage(`❌ Minimum Stars must be between 1-5 in ${rowText} ${invalidStars.join(', ')}`, 'error');
+    addValidationMessage(`❌ Minimum Stars must be between 1-5 in ${rowText} ${invalidStars.join(', ')}`, 'error');
     return;
   }
 
   // 6. Final check - should have valid job posts after validation
   if (jobPosts.length === 0) {
-    addInviterMessage('❌ No valid job posts found. Please check your entries', 'error');
+    addValidationMessage('❌ No valid job posts found. Please check your entries', 'error');
     return;
   }
 
-  // 7. Show validation success message
-  addInviterMessage(`✅ Validation passed! Processing ${jobPosts.length} job post${jobPosts.length > 1 ? 's' : ''} with ${jobbankAccountsList[selectedIndex]?.personal_info?.first_name || 'selected'} account`, 'info');
+  // 7. Show validation success message and clear it before starting
+  addValidationMessage(`✅ Validation passed! Processing ${jobPosts.length} job post${jobPosts.length > 1 ? 's' : ''} with ${jobbankAccountsList[selectedIndex]?.personal_info?.first_name || 'selected'} account`, 'success');
 
   const rcicData = jobbankAccountsList[selectedIndex];
   
+  // Clear validation messages after 2 seconds and start processing
+  setTimeout(() => {
+    DOM_ELEMENTS.inviterValidationMessages().innerHTML = '';
+  }, 2000);
+
   // 切换到处理中状态
   updateUIState('processing');
   resetInviterDisplay();
