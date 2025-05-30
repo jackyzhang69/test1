@@ -216,20 +216,12 @@ body {
   transition: color var(--transition-base), background var(--transition-base);
 }
 
-/* 添加装饰性背景元素 */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: 
-    radial-gradient(circle at 20% 80%, rgba(120, 170, 255, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(255, 130, 130, 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(130, 255, 200, 0.04) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
+/* Light Mode 背景渐变 */
+[data-theme="light"] body {
+  background: var(--bg-base);
+  background-image: 
+    radial-gradient(ellipse at top left, rgba(79, 127, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(255, 138, 128, 0.03) 0%, transparent 50%);
 }
 
 [data-theme="dark"] body::before {
@@ -264,11 +256,19 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.2);
   padding: var(--space-10);
   border-radius: var(--radius-2xl);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
   position: relative;
   overflow: hidden;
   transition: all var(--transition-base);
   backdrop-filter: blur(20px);
+}
+
+/* Light Mode 登录盒子 */
+[data-theme="light"] .login-box {
+  background: white;
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border-top: 3px solid var(--primary-color);
 }
 
 .login-box::before {
@@ -282,9 +282,13 @@ body::before {
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
 }
 
+[data-theme="light"] .login-box::before {
+  display: none; /* 已经有 border-top */
+}
+
 .login-box:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 /* 深色模式登录盒子 */
@@ -397,11 +401,22 @@ h3 {
   backdrop-filter: blur(10px);
 }
 
+/* Light Mode 输入框 */
+[data-theme="light"] .input-group input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+}
+
 .input-group input:focus {
   border-color: var(--primary-color);
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   transform: translateY(-1px);
+}
+
+[data-theme="light"] .input-group input:focus {
+  background: white;
+  box-shadow: 0 0 0 3px rgba(79, 127, 255, 0.1);
 }
 
 /* 深色模式输入框 */
@@ -474,7 +489,7 @@ h3 {
 }
 
 .login-button:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.02);
   box-shadow: var(--shadow-md), var(--shadow-glow);
 }
 
@@ -491,7 +506,7 @@ h3 {
 }
 
 .primary-button:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.02);
   box-shadow: var(--shadow-md), var(--shadow-glow);
 }
 
@@ -506,8 +521,15 @@ h3 {
 .secondary-button:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.02);
   box-shadow: var(--shadow-md);
+}
+
+/* Light Mode Secondary Button Hover */
+[data-theme="light"] .secondary-button:hover {
+  background: var(--primary-50);
+  border-color: var(--primary-300);
+  color: var(--primary-700);
 }
 
 /* Refresh Buttons - 使用中性色而非绿色 */
@@ -518,11 +540,23 @@ h3 {
   box-shadow: var(--shadow-sm);
 }
 
+/* Light Mode Refresh 按钮 */
+[data-theme="light"] .refresh-button {
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
 .refresh-button:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.02);
   box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .refresh-button:hover {
+  background: var(--bg-input);
+  border-color: var(--border-color);
 }
 
 /* Danger Buttons */
@@ -532,10 +566,23 @@ h3 {
   box-shadow: var(--shadow-sm);
 }
 
+/* Light Mode Danger 按钮更柔和 */
+[data-theme="light"] .danger-button {
+  background: transparent;
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+}
+
 .danger-button:hover {
   background: linear-gradient(135deg, var(--error-700) 0%, var(--error-600) 100%);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .danger-button:hover {
+  background: rgba(220, 53, 69, 0.1);
+  color: var(--error-600);
+  border-color: var(--error-600);
 }
 
 /* Small Buttons */
@@ -617,6 +664,13 @@ h3 {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* Light Mode Top Navbar */
+[data-theme="light"] .top-navbar {
+  background: white;
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
 .navbar-left {
   display: flex;
   align-items: center;
@@ -631,6 +685,12 @@ h3 {
 
 .navbar-logo:hover {
   transform: scale(1.02);
+}
+
+/* Progress Bar Animations Light Mode */
+[data-theme="light"] .progress {
+  background: rgba(226, 232, 240, 0.4);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .navbar-right {
@@ -688,6 +748,13 @@ h3 {
   white-space: nowrap;
 }
 
+/* Light Mode 标签页 */
+[data-theme="light"] .tab-button {
+  border: 1px solid transparent;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-base);
+}
+
 .tab-button::after {
   content: '';
   position: absolute;
@@ -711,8 +778,19 @@ h3 {
   font-weight: var(--font-weight-semibold);
 }
 
+/* Light Mode 活动标签 */
+[data-theme="light"] .tab-button.active {
+  background: white;
+  border: 1px solid var(--primary-color);
+  color: var(--primary-color);
+}
+
 .tab-button.active::after {
   width: 80%;
+}
+
+[data-theme="light"] .tab-button.active::after {
+  display: none; /* Light Mode 使用边框而非底部线条 */
 }
 
 /* Tab Content */
@@ -746,6 +824,13 @@ h3 {
   overflow: hidden;
   transition: all var(--transition-base);
   backdrop-filter: blur(10px);
+}
+
+/* Light Mode 内容卡片 */
+[data-theme="light"] .form-filling-box {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-subtle);
 }
 
 .form-filling-box::before {
@@ -786,11 +871,22 @@ h3 {
   cursor: pointer;
 }
 
+/* Light Mode 选择器 */
+[data-theme="light"] .application-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+}
+
 .application-select:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(79, 127, 255, 0.2);
   background: var(--bg-elevated);
   transform: translateY(-1px);
+}
+
+[data-theme="light"] .application-select:focus {
+  background: white;
+  box-shadow: 0 0 0 3px rgba(79, 127, 255, 0.1);
 }
 
 /* Settings Container */
@@ -803,6 +899,12 @@ h3 {
   border-radius: var(--radius-lg);
   border: none;
   backdrop-filter: blur(10px);
+}
+
+/* Light Mode Settings Container */
+[data-theme="light"] .settings-container {
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px solid var(--border-subtle);
 }
 
 .setting-item {
@@ -829,12 +931,24 @@ h3 {
   color: var(--text-color);
   transition: all var(--transition-fast);
   outline: none;
+  text-align: right; /* 数字右对齐 */
+}
+
+/* Light Mode 数字输入框 */
+[data-theme="light"] .setting-item input[type="number"] {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
 }
 
 .setting-item input[type="number"]:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(79, 127, 255, 0.2);
   background: var(--bg-elevated);
+}
+
+[data-theme="light"] .setting-item input[type="number"]:focus {
+  background: white;
+  box-shadow: 0 0 0 3px rgba(79, 127, 255, 0.1);
 }
 
 /* Checkbox Styles */
@@ -898,6 +1012,13 @@ h3 {
 /* Job Posts Section */
 .setting-section {
   margin-bottom: var(--space-6);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.setting-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .setting-header {
@@ -924,6 +1045,12 @@ h3 {
   border: 1px dashed var(--border-subtle);
   border-radius: var(--radius-base);
   margin: var(--space-4) 0;
+}
+
+/* Light Mode Empty State */
+[data-theme="light"] .empty-state {
+  background: rgba(241, 245, 249, 0.5);
+  border: 1px dashed rgba(203, 213, 225, 0.5);
 }
 
 .empty-state p {
@@ -964,6 +1091,12 @@ h3 {
   padding-left: var(--space-2);
 }
 
+/* Light Mode Job Post Row Hover */
+[data-theme="light"] .job-post-row:hover {
+  background: rgba(59, 130, 246, 0.03);
+  transform: translateX(4px);
+}
+
 .job-post-id {
   flex: 1;
   padding: var(--space-3) var(--space-4);
@@ -976,10 +1109,21 @@ h3 {
   outline: none;
 }
 
+/* Light Mode Job Post ID 输入框 */
+[data-theme="light"] .job-post-id {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+}
+
 .job-post-id:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(79, 127, 255, 0.2);
   background: var(--bg-elevated);
+}
+
+[data-theme="light"] .job-post-id:focus {
+  background: white;
+  box-shadow: 0 0 0 3px rgba(79, 127, 255, 0.1);
 }
 
 .minimum-stars {
@@ -992,12 +1136,24 @@ h3 {
   color: var(--text-color);
   transition: all var(--transition-fast);
   outline: none;
+  text-align: right; /* 数字右对齐 */
+}
+
+/* Light Mode Minimum Stars 输入框 */
+[data-theme="light"] .minimum-stars {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
 }
 
 .minimum-stars:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(79, 127, 255, 0.2);
   background: var(--bg-elevated);
+}
+
+[data-theme="light"] .minimum-stars:focus {
+  background: white;
+  box-shadow: 0 0 0 3px rgba(79, 127, 255, 0.1);
 }
 
 .remove-job-post-btn {
@@ -1115,6 +1271,13 @@ h3 {
   backdrop-filter: blur(10px);
 }
 
+/* Light Mode Message List */
+[data-theme="light"] .message-list {
+  background: white;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
 .message-item {
   position: absolute;
   top: 0;
@@ -1128,6 +1291,12 @@ h3 {
   background: var(--surface-color);
   border-left: 4px solid var(--primary-color);
   animation: slideIn 0.3s ease-out;
+}
+
+/* Light Mode Message Item */
+[data-theme="light"] .message-item {
+  background: white;
+  box-shadow: var(--shadow-sm);
 }
 
 @keyframes slideIn {
@@ -1176,6 +1345,13 @@ h3 {
   transition: all var(--transition-base);
 }
 
+/* Light Mode Status Area */
+[data-theme="light"] .status-area {
+  background: rgba(248, 250, 252, 0.5);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
 .status-content {
   position: absolute;
   top: 0;
@@ -1205,6 +1381,12 @@ h3 {
   margin-bottom: var(--space-4);
   opacity: 0.4;
   color: var(--text-muted);
+  transition: all var(--transition-base);
+}
+
+/* Light Mode Icon 透明度调整 */
+[data-theme="light"] .status-icon {
+  opacity: 0.25;
 }
 
 .empty-state .status-icon {
@@ -1277,6 +1459,11 @@ h3 {
   animation: fadeInUp 0.4s ease-out;
 }
 
+/* Light Mode Invitation Stats */
+[data-theme="light"] .invitation-stats {
+  border-top-color: var(--border-color);
+}
+
 .invitation-stats h4 {
   margin-bottom: var(--space-4);
   color: var(--text-color);
@@ -1303,6 +1490,12 @@ h3 {
 .stat-line:hover {
   padding-left: var(--space-2);
   background: rgba(255, 255, 255, 0.03);
+}
+
+/* Light Mode Stat Line Hover */
+[data-theme="light"] .stat-line:hover {
+  background: rgba(59, 130, 246, 0.05);
+  border-radius: var(--radius-sm);
 }
 
 .job-post-label {
@@ -1356,6 +1549,13 @@ h3 {
   text-align: center;
 }
 
+/* Light Mode Inviter Details */
+[data-theme="light"] #inviter-details {
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
 .processing-info {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
@@ -1371,6 +1571,13 @@ h3 {
   border-radius: var(--radius-lg);
   margin-bottom: var(--space-3);
   border: 1px solid var(--border-subtle);
+}
+
+/* Light Mode Form Details */
+[data-theme="light"] #form-details {
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
 
 .form-info {
@@ -1419,6 +1626,12 @@ h3 {
   backdrop-filter: blur(10px);
 }
 
+/* Light Mode Callback Container */
+[data-theme="light"] .callback-container {
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px solid var(--border-subtle);
+}
+
 .callback-info {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
@@ -1445,6 +1658,12 @@ h3 {
   backdrop-filter: blur(10px);
 }
 
+/* Light Mode Update Status Container */
+[data-theme="light"] .update-status-container {
+  background: rgba(248, 250, 252, 0.7);
+  border: 1px solid var(--border-subtle);
+}
+
 .update-status {
   flex: 1;
   font-size: var(--font-size-sm);
@@ -1463,6 +1682,19 @@ h3 {
 .hidden {
   display: none !important;
   visibility: hidden !important;
+}
+
+/* Divider Styles */
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-6) 0;
+  opacity: 0.5;
+}
+
+[data-theme="light"] .divider {
+  background: var(--border-color);
+  opacity: 0.3;
 }
 
 /* Loading States */
@@ -1504,6 +1736,13 @@ h3 {
   cursor: pointer;
   transition: all var(--transition-base);
   box-shadow: var(--shadow-lg);
+}
+
+/* Light Mode Theme Toggle */
+[data-theme="light"] .theme-toggle {
+  background: white;
+  border: 2px solid var(--primary-300);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .theme-toggle:hover {
