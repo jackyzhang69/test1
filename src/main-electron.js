@@ -685,4 +685,5 @@ ipcMain.handle('get-app-version', () => {
   return app.getVersion();
 });
 
+
 module.exports = { createWindow, initMongoDB }; 

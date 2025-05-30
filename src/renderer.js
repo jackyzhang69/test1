@@ -47,6 +47,13 @@ let jobbankAccountsList = [];
 let jobPostCounter = 1;
 let invitationStats = {};
 
+// Enhanced retry and invitation tracking
+let jobInvitationTracking = {}; // { jobPostId: { totalInvited, currentAttempt, attemptResults, errors } }
+let retryCounters = {}; // { jobPostId: currentAttemptNumber }
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000; // 2 seconds
+
+
 // UI 更新函数
 function updateProgress(progress) {
   const progressBar = DOM_ELEMENTS.progressBar();
@@ -116,13 +123,26 @@ function addInviterMessage(message, type = '') {
   const messageList = DOM_ELEMENTS.inviterMessageList();
   if (!messageList) return;
 
-  messageList.innerHTML = '';
+  // For retry scenarios, keep recent messages instead of clearing all
+  if (type === 'warning' || type === 'info') {
+    // Keep the last few messages for context
+    const messages = messageList.querySelectorAll('.message-item');
+    if (messages.length > 3) {
+      messageList.innerHTML = '';
+    }
+  } else {
+    // Clear for success/error messages
+    messageList.innerHTML = '';
+  }
   
   const messageElement = document.createElement('div');
   messageElement.className = `message-item ${type}`;
   messageElement.textContent = message;
   
   messageList.appendChild(messageElement);
+  
+  // Auto-scroll to latest message
+  messageElement.scrollIntoView({ behavior: 'smooth' });
 }
 
 function updateInviterCallbackInfo(info) {
@@ -175,6 +195,7 @@ function resetInviterDisplay() {
   resetOverallProgress();
   resetCurrentJobProgress();
   hideInvitationStats();
+  resetAllJobTracking();
 }
 
 function resetOverallProgress() {
@@ -205,6 +226,199 @@ function hideInvitationStats() {
     statsElement.classList.add('hidden');
     statsElement.innerHTML = '';
   }
+}
+
+// Enhanced invitation tracking functions
+function initializeJobTracking(jobPostId) {
+  jobInvitationTracking[jobPostId] = {
+    totalInvited: 0,
+    currentAttempt: 1,
+    attemptResults: [],
+    errors: [],
+    isCompleted: false
+  };
+  retryCounters[jobPostId] = 1;
+}
+
+function recordAttemptResult(jobPostId, invited, success, error = null) {
+  const tracking = jobInvitationTracking[jobPostId];
+  if (!tracking) return;
+
+  const attemptResult = {
+    attempt: tracking.currentAttempt,
+    invited: invited || 0,
+    success: success,
+    error: error
+  };
+
+  tracking.attemptResults.push(attemptResult);
+  
+  if (success) {
+    tracking.totalInvited += (invited || 0);
+    tracking.isCompleted = true;
+    // Update global stats for compatibility
+    invitationStats[jobPostId] = tracking.totalInvited;
+  } else if (error) {
+    tracking.errors.push(`Attempt ${tracking.currentAttempt}: ${error}`);
+  }
+}
+
+function shouldRetryJob(jobPostId, error) {
+  const tracking = jobInvitationTracking[jobPostId];
+  if (!tracking || tracking.isCompleted) return false;
+  
+  if (tracking.currentAttempt >= MAX_RETRIES) return false;
+
+  // Non-retriable errors
+  const nonRetriableErrors = [
+    'invalid job post id',
+    'unauthorized',
+    'permission denied',
+    'account suspended',
+    'invalid credentials'
+  ];
+
+  const errorLower = (error || '').toLowerCase();
+  const isNonRetriable = nonRetriableErrors.some(nonRetriable => 
+    errorLower.includes(nonRetriable)
+  );
+
+  return !isNonRetriable;
+}
+
+function getJobTrackingSummary(jobPostId) {
+  const tracking = jobInvitationTracking[jobPostId];
+  if (!tracking) return null;
+
+  return {
+    totalInvited: tracking.totalInvited,
+    attempts: tracking.currentAttempt,
+    maxAttempts: MAX_RETRIES,
+    isCompleted: tracking.isCompleted,
+    errors: tracking.errors,
+    attemptResults: tracking.attemptResults
+  };
+}
+
+function resetAllJobTracking() {
+  jobInvitationTracking = {};
+  retryCounters = {};
+  invitationStats = {};
+}
+
+
+// Enhanced job execution with retry logic
+async function executeJobWithRetry(rcicData, jobPostId, minimumStars, itemsPerPage, headless, timeout) {
+  initializeJobTracking(jobPostId);
+  
+  const tracking = jobInvitationTracking[jobPostId];
+  
+  while (tracking.currentAttempt <= MAX_RETRIES && !tracking.isCompleted) {
+    try {
+      // Update UI for attempt
+      if (tracking.currentAttempt > 1) {
+        addInviterMessage(
+          `Job ${jobPostId}: Attempt ${tracking.currentAttempt}/${MAX_RETRIES} - Retrying...`, 
+          'info'
+        );
+      }
+      
+      updateCurrentJobTitle(`${jobPostId} (Attempt ${tracking.currentAttempt}/${MAX_RETRIES})`);
+      
+      // Execute the job
+      const result = await window.api.runJobbankInviter(
+        rcicData,
+        jobPostId,
+        minimumStars,
+        itemsPerPage,
+        headless,
+        timeout
+      );
+      
+      if (result.success) {
+        // Success - record result and break
+        const invited = result.invited || 0;
+        recordAttemptResult(jobPostId, invited, true);
+        
+        const summary = getJobTrackingSummary(jobPostId);
+        if (summary.attempts > 1) {
+          addInviterMessage(
+            `Job ${jobPostId}: Completed after ${summary.attempts} attempts - Invited ${summary.totalInvited} candidates`, 
+            'success'
+          );
+        } else {
+          addInviterMessage(
+            `Job ${jobPostId}: Completed - Invited ${summary.totalInvited} candidates`, 
+            'success'
+          );
+        }
+        
+        return { success: true, invited: summary.totalInvited, attempts: summary.attempts };
+        
+      } else {
+        // Failed - check if we should retry
+        const error = result.error || 'Unknown error';
+        recordAttemptResult(jobPostId, 0, false, error);
+        
+        if (shouldRetryJob(jobPostId, error)) {
+          if (tracking.currentAttempt < MAX_RETRIES) {
+            addInviterMessage(
+              `Job ${jobPostId}: ${error} (Attempt ${tracking.currentAttempt}/${MAX_RETRIES}) - Retrying in ${RETRY_DELAY/1000} seconds...`, 
+              'warning'
+            );
+            
+            tracking.currentAttempt++;
+            retryCounters[jobPostId] = tracking.currentAttempt;
+            
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            continue;
+          }
+        }
+        
+        // Final failure
+        const summary = getJobTrackingSummary(jobPostId);
+        addInviterMessage(
+          `Job ${jobPostId}: Failed after ${summary.attempts} attempts - ${error}`, 
+          'error'
+        );
+        
+        return { success: false, error: error, attempts: summary.attempts };
+      }
+      
+    } catch (error) {
+      const errorMsg = error.message || 'Unexpected error';
+      recordAttemptResult(jobPostId, 0, false, errorMsg);
+      
+      if (shouldRetryJob(jobPostId, errorMsg)) {
+        if (tracking.currentAttempt < MAX_RETRIES) {
+          addInviterMessage(
+            `Job ${jobPostId}: ${errorMsg} (Attempt ${tracking.currentAttempt}/${MAX_RETRIES}) - Retrying in ${RETRY_DELAY/1000} seconds...`, 
+            'warning'
+          );
+          
+          tracking.currentAttempt++;
+          retryCounters[jobPostId] = tracking.currentAttempt;
+          
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          continue;
+        }
+      }
+      
+      // Final failure
+      const summary = getJobTrackingSummary(jobPostId);
+      addInviterMessage(
+        `Job ${jobPostId}: Failed after ${summary.attempts} attempts - ${errorMsg}`, 
+        'error'
+      );
+      
+      return { success: false, error: errorMsg, attempts: summary.attempts };
+    }
+  }
+  
+  // Should not reach here, but handle it
+  const summary = getJobTrackingSummary(jobPostId);
+  return { success: false, error: 'Max retries exceeded', attempts: summary.attempts };
 }
 
 function populateRcicAccountSelect(rcicAccounts) {
@@ -339,12 +553,19 @@ function displayInvitationStats() {
   const statsHtml = `
     <h4>Invitation Summary</h4>
     <div class="stats-list">
-      ${Object.entries(invitationStats).map(([jobId, count]) => `
-        <div class="stat-line">
-          <span class="job-post-label">Job Post ${jobId}:</span>
-          <span class="invitation-count">${count} invitations sent</span>
-        </div>
-      `).join('')}
+      ${Object.entries(invitationStats).map(([jobId, count]) => {
+        const tracking = getJobTrackingSummary(jobId);
+        const attemptsInfo = tracking && tracking.attempts > 1 
+          ? ` (${tracking.attempts} attempts)` 
+          : '';
+        
+        return `
+          <div class="stat-line">
+            <span class="job-post-label">Job Post ${jobId}:</span>
+            <span class="invitation-count">${count} invitations sent${attemptsInfo}</span>
+          </div>
+        `;
+      }).join('')}
     </div>
     <div class="stats-total">
       <strong>Total Invitations: ${totalInvitations}</strong>
@@ -475,7 +696,6 @@ async function handleRefreshJobbanks() {
     }
 
     resetInviterDisplay();
-    invitationStats = {}; // Reset stats
 
     const rcicResponse = await window.api.fetchJobbankAccounts(currentUser._id);
     
@@ -512,55 +732,60 @@ async function handleStartInviter() {
   const rcicData = jobbankAccountsList[selectedIndex];
   
   resetInviterDisplay();
-  invitationStats = {}; // Reset stats
   
   try {
     // Update overall progress
     updateOverallProgress(0, jobPosts.length);
     
-    // If single job, use old method for compatibility
-    if (jobPosts.length === 1) {
-      const { jobPostId, minimumStars } = jobPosts[0];
-      updateCurrentJobTitle(jobPostId);
+    let totalInvitationsAcrossAllJobs = 0;
+    let completedJobs = 0;
+    
+    // Process each job with enhanced retry logic
+    for (let i = 0; i < jobPosts.length; i++) {
+      const { jobPostId, minimumStars } = jobPosts[i];
       
-      const result = await window.api.runJobbankInviter(
-        rcicData,
-        jobPostId,
-        minimumStars,
-        itemsPerPage,
-        headless,
-        timeout
-      );
+      // Update overall progress
+      updateOverallProgress(i, jobPosts.length);
       
-      if (!result.success) {
-        addInviterMessage(`Job ${jobPostId} failed: ${result.error}`, 'error');
-      }
-    } else {
-      // For multiple jobs, use the new method that doesn't logout between jobs
-      const result = await window.api.runJobbankInviterMultiple(
-        rcicData,
-        jobPosts,
-        itemsPerPage,
-        headless,
-        timeout
-      );
-      
-      if (!result.success) {
-        addInviterMessage(`Inviter failed: ${result.error}`, 'error');
-      } else {
-        addInviterMessage(`Processed ${result.results.length} job posts`, 'info');
-        addInviterMessage(`Total invitations sent: ${result.totalInvited}`, 'success');
+      try {
+        const result = await executeJobWithRetry(
+          rcicData,
+          jobPostId,
+          minimumStars,
+          itemsPerPage,
+          headless,
+          timeout
+        );
+        
+        if (result.success) {
+          totalInvitationsAcrossAllJobs += result.invited;
+          completedJobs++;
+        }
+        
+        // Update progress after each job
+        updateOverallProgress(i + 1, jobPosts.length);
+        
+      } catch (error) {
+        console.error(`Error processing job ${jobPostId}:`, error);
+        addInviterMessage(`Job ${jobPostId}: Unexpected error - ${error.message}`, 'error');
       }
     }
     
-    // All jobs completed
+    // All jobs completed - show final summary
     updateOverallProgress(jobPosts.length, jobPosts.length);
-    addInviterMessage('All job posts processed!', 'success');
+    
+    if (completedJobs === jobPosts.length) {
+      addInviterMessage(`All ${jobPosts.length} job posts processed successfully!`, 'success');
+    } else {
+      addInviterMessage(`Processed ${completedJobs}/${jobPosts.length} job posts`, 'info');
+    }
+    
+    addInviterMessage(`Total invitations sent: ${totalInvitationsAcrossAllJobs}`, 'success');
     displayInvitationStats();
     
   } catch (error) {
     console.error('Error running jobbank inviter:', error);
-    addInviterMessage(`Error: ${error.message}`, 'error');
+    addInviterMessage(`Critical error: ${error.message}`, 'error');
   }
 }
 
@@ -604,6 +829,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       versionInfoElement.textContent = 'Version unknown';
     }
   }
+  
   
   // 设置事件监听器
   DOM_ELEMENTS.loginForm()?.addEventListener('submit', handleLogin);
@@ -704,6 +930,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (addJobPostBtn) {
     addJobPostBtn.addEventListener('click', addJobPostRow);
   }
+  
   
   // Initialize remove buttons visibility
   updateRemoveButtonsVisibility();
