@@ -29,7 +29,6 @@ const DOM_ELEMENTS = {
   inviterHeadlessMode: () => document.getElementById('inviterHeadlessMode'),
   startInviterBtn: () => document.getElementById('startInviterBtn'),
   refreshRcicBtn: () => document.getElementById('refreshRcicBtn'),
-  exitInviterBtn: () => document.getElementById('exitInviterBtn'),
   inviterProgressBar: () => document.getElementById('inviterProgressBar'),
   inviterMessageList: () => document.getElementById('inviterMessageList'),
   // New elements for multiple job posts
@@ -38,6 +37,7 @@ const DOM_ELEMENTS = {
   overallProgressBar: () => document.getElementById('overallProgressBar'),
   currentJobTitle: () => document.getElementById('currentJobTitle'),
   invitationStats: () => document.getElementById('invitationStats'),
+  inviterDetails: () => document.getElementById('inviter-details'),
 };
 
 // 状态管理
@@ -47,11 +47,9 @@ let jobbankAccountsList = [];
 let jobPostCounter = 1;
 let invitationStats = {};
 
-// Enhanced retry and invitation tracking
-let jobInvitationTracking = {}; // { jobPostId: { totalInvited, currentAttempt, attemptResults, errors } }
-let retryCounters = {}; // { jobPostId: currentAttemptNumber }
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // 2 seconds
+// UI状态管理
+let currentUIState = 'empty'; // empty, ready, processing, results
+let isProcessing = false;
 
 
 // UI 更新函数
@@ -157,6 +155,14 @@ function updateInviterCallbackInfo(info) {
     if (action === 'progress' && currentCandidate !== undefined && totalCandidates !== undefined && totalCandidates > 0) {
       const progress = (currentCandidate / totalCandidates) * 100;
       updateInviterProgress(progress);
+      
+      // Update the message box with processing info
+      const detailsBox = DOM_ELEMENTS.inviterDetails() || document.getElementById('inviter-details');
+      if (detailsBox) {
+        detailsBox.style.display = 'block';
+        detailsBox.innerHTML = `<div class="processing-info">Processing row ${currentCandidate} of ${totalCandidates} total</div>`;
+      }
+      
       return; // Don't process further for progress updates
     }
     
@@ -164,6 +170,13 @@ function updateInviterCallbackInfo(info) {
       const { currentJob, totalJobs, jobPostId } = info.message;
       updateOverallProgress(currentJob, totalJobs);
       updateCurrentJobTitle(jobPostId);
+      
+      // Also show job progress in details box
+      const detailsBox = DOM_ELEMENTS.inviterDetails();
+      if (detailsBox) {
+        detailsBox.style.display = 'block';
+        detailsBox.innerHTML = `<div class="processing-info">Processing Job Post ${jobPostId} (${currentJob} of ${totalJobs})</div>`;
+      }
     } else if (action === 'complete') {
       const message = completed && completed.length > 0 
         ? completed.join(', ')
@@ -178,10 +191,25 @@ function updateInviterCallbackInfo(info) {
       if (errors && errors.length > 0) {
         errors.forEach(error => addInviterMessage(`Error: ${error}`, 'error'));
       }
+      
+      // Hide the details box when job completes
+      const detailsBox = DOM_ELEMENTS.inviterDetails();
+      if (detailsBox) {
+        detailsBox.style.display = 'none';
+      }
     } else if (action === 'error' || info.message.error) {
       addInviterMessage(`Error: ${info.message.error || 'Unknown error'}`, 'error');
     } else if (action === 'status') {
       addInviterMessage(name || action);
+      
+      // Also show status in details box if it's a processing-related message
+      if (name && name.includes('Processing')) {
+        const detailsBox = DOM_ELEMENTS.inviterDetails();
+        if (detailsBox) {
+          detailsBox.style.display = 'block';
+          detailsBox.innerHTML = `<div class="processing-info">${name}</div>`;
+        }
+      }
     }
   }
 }
@@ -195,7 +223,13 @@ function resetInviterDisplay() {
   resetOverallProgress();
   resetCurrentJobProgress();
   hideInvitationStats();
-  resetAllJobTracking();
+  
+  // Hide the details box
+  const detailsBox = DOM_ELEMENTS.inviterDetails();
+  if (detailsBox) {
+    detailsBox.style.display = 'none';
+    detailsBox.innerHTML = '';
+  }
 }
 
 function resetOverallProgress() {
@@ -228,197 +262,85 @@ function hideInvitationStats() {
   }
 }
 
-// Enhanced invitation tracking functions
-function initializeJobTracking(jobPostId) {
-  jobInvitationTracking[jobPostId] = {
-    totalInvited: 0,
-    currentAttempt: 1,
-    attemptResults: [],
-    errors: [],
-    isCompleted: false
-  };
-  retryCounters[jobPostId] = 1;
-}
 
-function recordAttemptResult(jobPostId, invited, success, error = null) {
-  const tracking = jobInvitationTracking[jobPostId];
-  if (!tracking) return;
-
-  const attemptResult = {
-    attempt: tracking.currentAttempt,
-    invited: invited || 0,
-    success: success,
-    error: error
-  };
-
-  tracking.attemptResults.push(attemptResult);
+// UI状态管理函数
+function updateUIState(newState, data = {}) {
+  currentUIState = newState;
   
-  if (success) {
-    tracking.totalInvited += (invited || 0);
-    tracking.isCompleted = true;
-    // Update global stats for compatibility
-    invitationStats[jobPostId] = tracking.totalInvited;
-  } else if (error) {
-    tracking.errors.push(`Attempt ${tracking.currentAttempt}: ${error}`);
+  // 隐藏所有状态内容
+  const states = ['emptyState', 'readyState', 'processingState', 'resultsState'];
+  states.forEach(stateId => {
+    const element = document.getElementById(stateId);
+    if (element) {
+      element.style.display = 'none';
+      element.classList.remove('active');
+    }
+  });
+  
+  // 显示当前状态
+  const currentStateElement = document.getElementById(newState + 'State');
+  if (currentStateElement) {
+    currentStateElement.style.display = 'flex';
+    currentStateElement.classList.add('active');
   }
-}
-
-function shouldRetryJob(jobPostId, error) {
-  const tracking = jobInvitationTracking[jobPostId];
-  if (!tracking || tracking.isCompleted) return false;
   
-  if (tracking.currentAttempt >= MAX_RETRIES) return false;
-
-  // Non-retriable errors
-  const nonRetriableErrors = [
-    'invalid job post id',
-    'unauthorized',
-    'permission denied',
-    'account suspended',
-    'invalid credentials'
-  ];
-
-  const errorLower = (error || '').toLowerCase();
-  const isNonRetriable = nonRetriableErrors.some(nonRetriable => 
-    errorLower.includes(nonRetriable)
-  );
-
-  return !isNonRetriable;
-}
-
-function getJobTrackingSummary(jobPostId) {
-  const tracking = jobInvitationTracking[jobPostId];
-  if (!tracking) return null;
-
-  return {
-    totalInvited: tracking.totalInvited,
-    attempts: tracking.currentAttempt,
-    maxAttempts: MAX_RETRIES,
-    isCompleted: tracking.isCompleted,
-    errors: tracking.errors,
-    attemptResults: tracking.attemptResults
-  };
-}
-
-function resetAllJobTracking() {
-  jobInvitationTracking = {};
-  retryCounters = {};
-  invitationStats = {};
-}
-
-
-// Enhanced job execution with retry logic
-async function executeJobWithRetry(rcicData, jobPostId, minimumStars, itemsPerPage, headless, timeout) {
-  initializeJobTracking(jobPostId);
-  
-  const tracking = jobInvitationTracking[jobPostId];
-  
-  while (tracking.currentAttempt <= MAX_RETRIES && !tracking.isCompleted) {
-    try {
-      // Update UI for attempt
-      if (tracking.currentAttempt > 1) {
-        addInviterMessage(
-          `Job ${jobPostId}: Attempt ${tracking.currentAttempt}/${MAX_RETRIES} - Retrying...`, 
-          'info'
-        );
-      }
-      
-      updateCurrentJobTitle(`${jobPostId} (Attempt ${tracking.currentAttempt}/${MAX_RETRIES})`);
-      
-      // Execute the job
-      const result = await window.api.runJobbankInviter(
-        rcicData,
-        jobPostId,
-        minimumStars,
-        itemsPerPage,
-        headless,
-        timeout
-      );
-      
-      if (result.success) {
-        // Success - record result and break
-        const invited = result.invited || 0;
-        recordAttemptResult(jobPostId, invited, true);
-        
-        const summary = getJobTrackingSummary(jobPostId);
-        if (summary.attempts > 1) {
-          addInviterMessage(
-            `Job ${jobPostId}: Completed after ${summary.attempts} attempts - Invited ${summary.totalInvited} candidates`, 
-            'success'
-          );
-        } else {
-          addInviterMessage(
-            `Job ${jobPostId}: Completed - Invited ${summary.totalInvited} candidates`, 
-            'success'
-          );
+  // 根据状态显示/隐藏进度区域
+  const progressSection = document.getElementById('progressSection');
+  if (progressSection) {
+    if (newState === 'processing') {
+      progressSection.style.display = 'block';
+      progressSection.classList.add('show');
+      isProcessing = true;
+    } else {
+      progressSection.classList.remove('show');
+      setTimeout(() => {
+        if (currentUIState !== 'processing') {
+          progressSection.style.display = 'none';
         }
-        
-        return { success: true, invited: summary.totalInvited, attempts: summary.attempts };
-        
-      } else {
-        // Failed - check if we should retry
-        const error = result.error || 'Unknown error';
-        recordAttemptResult(jobPostId, 0, false, error);
-        
-        if (shouldRetryJob(jobPostId, error)) {
-          if (tracking.currentAttempt < MAX_RETRIES) {
-            addInviterMessage(
-              `Job ${jobPostId}: ${error} (Attempt ${tracking.currentAttempt}/${MAX_RETRIES}) - Retrying in ${RETRY_DELAY/1000} seconds...`, 
-              'warning'
-            );
-            
-            tracking.currentAttempt++;
-            retryCounters[jobPostId] = tracking.currentAttempt;
-            
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-            continue;
-          }
-        }
-        
-        // Final failure
-        const summary = getJobTrackingSummary(jobPostId);
-        addInviterMessage(
-          `Job ${jobPostId}: Failed after ${summary.attempts} attempts - ${error}`, 
-          'error'
-        );
-        
-        return { success: false, error: error, attempts: summary.attempts };
-      }
-      
-    } catch (error) {
-      const errorMsg = error.message || 'Unexpected error';
-      recordAttemptResult(jobPostId, 0, false, errorMsg);
-      
-      if (shouldRetryJob(jobPostId, errorMsg)) {
-        if (tracking.currentAttempt < MAX_RETRIES) {
-          addInviterMessage(
-            `Job ${jobPostId}: ${errorMsg} (Attempt ${tracking.currentAttempt}/${MAX_RETRIES}) - Retrying in ${RETRY_DELAY/1000} seconds...`, 
-            'warning'
-          );
-          
-          tracking.currentAttempt++;
-          retryCounters[jobPostId] = tracking.currentAttempt;
-          
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-          continue;
-        }
-      }
-      
-      // Final failure
-      const summary = getJobTrackingSummary(jobPostId);
-      addInviterMessage(
-        `Job ${jobPostId}: Failed after ${summary.attempts} attempts - ${errorMsg}`, 
-        'error'
-      );
-      
-      return { success: false, error: errorMsg, attempts: summary.attempts };
+      }, 300);
+      isProcessing = false;
     }
   }
   
-  // Should not reach here, but handle it
-  const summary = getJobTrackingSummary(jobPostId);
-  return { success: false, error: 'Max retries exceeded', attempts: summary.attempts };
+  // 更新具体内容
+  switch (newState) {
+    case 'ready':
+      const jobCount = getJobPosts().length;
+      const jobCountElement = document.getElementById('jobCount');
+      if (jobCountElement) {
+        jobCountElement.textContent = jobCount;
+      }
+      break;
+      
+    case 'processing':
+      // 处理中状态的特殊逻辑
+      break;
+      
+    case 'results':
+      // 结果状态时显示统计信息
+      displayInvitationStats();
+      // 隐藏进度区域
+      const progressSectionResults = document.getElementById('progressSection');
+      if (progressSectionResults) {
+        progressSectionResults.classList.remove('show');
+        setTimeout(() => {
+          if (currentUIState !== 'processing') {
+            progressSectionResults.style.display = 'none';
+          }
+        }, 300);
+      }
+      break;
+  }
+}
+
+function checkJobPostsAndUpdateState() {
+  const jobPosts = getJobPosts();
+  
+  if (jobPosts.length === 0) {
+    updateUIState('empty');
+  } else if (!isProcessing) {
+    updateUIState('ready');
+  }
 }
 
 function populateRcicAccountSelect(rcicAccounts) {
@@ -464,6 +386,11 @@ function populateRcicAccountSelect(rcicAccounts) {
     option.textContent = label;
     select.appendChild(option);
   });
+  
+  // 如果只有一个账户，自动选择它
+  if (rcicAccounts.length === 1) {
+    select.value = "0";
+  }
 }
 
 // Job Posts Management Functions
@@ -476,24 +403,50 @@ function addJobPostRow() {
   newRow.dataset.index = jobPostCounter++;
   
   newRow.innerHTML = `
-    <input type="text" class="job-post-id" placeholder="Job Post ID" title="Job Post ID from JobBank">
+    <input type="text" class="job-post-id" placeholder="Enter Job Post ID" title="Job Post ID from JobBank">
     <input type="number" class="minimum-stars" value="2" min="1" max="5" step="1" title="Minimum stars (1-5)" style="width: 120px;">
     <button class="remove-job-post-btn action-button secondary-button" title="Remove this job post">
       <i class="fas fa-trash"></i>
     </button>
   `;
   
-  // Add remove handler
-  const removeBtn = newRow.querySelector('.remove-job-post-btn');
-  removeBtn.addEventListener('click', () => removeJobPostRow(newRow));
+  // Add input change listeners for state management
+  const jobPostInput = newRow.querySelector('.job-post-id');
+  jobPostInput.addEventListener('input', checkJobPostsAndUpdateState);
   
+  // Add remove handler with animation
+  const removeBtn = newRow.querySelector('.remove-job-post-btn');
+  removeBtn.addEventListener('click', () => {
+    addButtonClickEffect(removeBtn);
+    removeJobPostRow(newRow);
+  });
+  
+  // Add fade-in animation
+  newRow.style.opacity = '0';
+  newRow.style.transform = 'translateY(-10px)';
   jobPostsList.appendChild(newRow);
+  
+  setTimeout(() => {
+    newRow.style.transition = 'all 0.3s ease';
+    newRow.style.opacity = '1';
+    newRow.style.transform = 'translateY(0)';
+  }, 10);
+  
   updateRemoveButtonsVisibility();
+  checkJobPostsAndUpdateState();
 }
 
 function removeJobPostRow(row) {
-  row.remove();
-  updateRemoveButtonsVisibility();
+  // Add fade-out animation
+  row.style.transition = 'all 0.3s ease';
+  row.style.opacity = '0';
+  row.style.transform = 'translateY(-10px)';
+  
+  setTimeout(() => {
+    row.remove();
+    updateRemoveButtonsVisibility();
+    checkJobPostsAndUpdateState();
+  }, 300);
 }
 
 function updateRemoveButtonsVisibility() {
@@ -535,6 +488,12 @@ function updateOverallProgress(current, total) {
     progressBar.style.width = `${percentage}%`;
     progressBar.textContent = `${current} / ${total} Job Posts`;
   }
+  
+  // 同时更新状态区域的进度计数器
+  const progressCounter = document.getElementById('progressCounter');
+  if (progressCounter) {
+    progressCounter.textContent = `${current} / ${total} Job Posts`;
+  }
 }
 
 function updateCurrentJobTitle(jobPostId) {
@@ -554,15 +513,10 @@ function displayInvitationStats() {
     <h4>Invitation Summary</h4>
     <div class="stats-list">
       ${Object.entries(invitationStats).map(([jobId, count]) => {
-        const tracking = getJobTrackingSummary(jobId);
-        const attemptsInfo = tracking && tracking.attempts > 1 
-          ? ` (${tracking.attempts} attempts)` 
-          : '';
-        
         return `
           <div class="stat-line">
             <span class="job-post-label">Job Post ${jobId}:</span>
-            <span class="invitation-count">${count} invitations sent${attemptsInfo}</span>
+            <span class="invitation-count">${count} invitations sent</span>
           </div>
         `;
       }).join('')}
@@ -608,25 +562,6 @@ async function handleLogin(e) {
         
         setupDeleteButton();
         setupTabNavigation();
-        
-        // 使用真实数据填充下拉框
-        setTimeout(() => {
-          if (jobbankAccountsList && jobbankAccountsList.length > 0) {
-            populateRcicAccountSelect(jobbankAccountsList);
-          } else {
-            const noDataMessage = [
-              {
-                personal_info: {
-                  first_name: "No RCIC accounts",
-                  last_name: "found", 
-                  rcic_number: "N/A",
-                  company: "Please check your account setup"
-                }
-              }
-            ];
-            populateRcicAccountSelect(noDataMessage);
-          }
-        }, 500);
       } else {
         errorMessage.textContent = dataResponse.error || 'Login successful, but form data fetch failed.';
       }
@@ -731,61 +666,64 @@ async function handleStartInviter() {
 
   const rcicData = jobbankAccountsList[selectedIndex];
   
+  // 切换到处理中状态
+  updateUIState('processing');
   resetInviterDisplay();
   
+  // Show initial processing message
+  const detailsBox = DOM_ELEMENTS.inviterDetails();
+  if (detailsBox) {
+    detailsBox.style.display = 'block';
+    detailsBox.innerHTML = '<div class="processing-info">Starting invitation process...</div>';
+  }
+  
   try {
+    // Update progress counter
+    const progressCounter = document.getElementById('progressCounter');
+    if (progressCounter) {
+      progressCounter.textContent = `0 / ${jobPosts.length} Job Posts`;
+    }
+    
     // Update overall progress
     updateOverallProgress(0, jobPosts.length);
     
-    let totalInvitationsAcrossAllJobs = 0;
-    let completedJobs = 0;
+    // Call the multiple job posts handler (single login)
+    const result = await window.api.runJobbankInviterMultiple(
+      rcicData,
+      jobPosts,
+      itemsPerPage,
+      headless,
+      timeout
+    );
     
-    // Process each job with enhanced retry logic
-    for (let i = 0; i < jobPosts.length; i++) {
-      const { jobPostId, minimumStars } = jobPosts[i];
-      
-      // Update overall progress
-      updateOverallProgress(i, jobPosts.length);
-      
-      try {
-        const result = await executeJobWithRetry(
-          rcicData,
-          jobPostId,
-          minimumStars,
-          itemsPerPage,
-          headless,
-          timeout
-        );
-        
-        if (result.success) {
-          totalInvitationsAcrossAllJobs += result.invited;
-          completedJobs++;
-        }
-        
-        // Update progress after each job
-        updateOverallProgress(i + 1, jobPosts.length);
-        
-      } catch (error) {
-        console.error(`Error processing job ${jobPostId}:`, error);
-        addInviterMessage(`Job ${jobPostId}: Unexpected error - ${error.message}`, 'error');
+    if (result.success) {
+      // Display results from all jobs
+      if (result.results && result.results.length > 0) {
+        result.results.forEach(jobResult => {
+          if (jobResult.success) {
+            invitationStats[jobResult.jobPostId] = jobResult.invited;
+          }
+        });
       }
-    }
-    
-    // All jobs completed - show final summary
-    updateOverallProgress(jobPosts.length, jobPosts.length);
-    
-    if (completedJobs === jobPosts.length) {
-      addInviterMessage(`All ${jobPosts.length} job posts processed successfully!`, 'success');
+      
+      const totalInvited = result.totalInvited || 0;
+      addInviterMessage(`All ${jobPosts.length} job posts processed! Total invitations sent: ${totalInvited}`, 'success');
+      
+      if (result.errors && result.errors.length > 0) {
+        result.errors.forEach(error => addInviterMessage(`Error: ${error}`, 'error'));
+      }
     } else {
-      addInviterMessage(`Processed ${completedJobs}/${jobPosts.length} job posts`, 'info');
+      addInviterMessage(`Error: ${result.error || 'Unknown error'}`, 'error');
     }
     
-    addInviterMessage(`Total invitations sent: ${totalInvitationsAcrossAllJobs}`, 'success');
-    displayInvitationStats();
+    // 切换到结果状态
+    updateUIState('results');
     
   } catch (error) {
     console.error('Error running jobbank inviter:', error);
     addInviterMessage(`Critical error: ${error.message}`, 'error');
+    // 处理错误时也切换到结果状态显示错误信息
+    updateUIState('results');
   }
 }
 
@@ -814,9 +752,87 @@ function updateStatusMessage(message) {
   }
 }
 
+// Dark Mode and Theme Management
+function initializeTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  const themeToggle = document.getElementById('themeToggle');
+  const themeIcon = document.getElementById('themeIcon');
+  
+  // Apply saved theme
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeIcon(savedTheme, themeIcon);
+  updateLogos(savedTheme);
+  
+  // Theme toggle functionality
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon(newTheme, themeIcon);
+      updateLogos(newTheme);
+      
+      // Add smooth transition effect
+      document.body.style.transition = 'all 0.3s ease';
+      setTimeout(() => {
+        document.body.style.transition = '';
+      }, 300);
+    });
+  }
+}
+
+function updateThemeIcon(theme, iconElement) {
+  if (!iconElement) return;
+  
+  if (theme === 'dark') {
+    iconElement.className = 'fas fa-sun';
+  } else {
+    iconElement.className = 'fas fa-moon';
+  }
+}
+
+function updateLogos(theme) {
+  const logos = document.querySelectorAll('.logo');
+  logos.forEach(logo => {
+    if (theme === 'dark') {
+      logo.src = 'assets/logo-dark.png';
+    } else {
+      logo.src = 'assets/logo-light.png';
+    }
+  });
+}
+
+// Enhanced UI Animations
+function addLoadingState(element) {
+  if (element) {
+    element.classList.add('loading');
+    element.disabled = true;
+  }
+}
+
+function removeLoadingState(element) {
+  if (element) {
+    element.classList.remove('loading');
+    element.disabled = false;
+  }
+}
+
+// Enhanced button click animations
+function addButtonClickEffect(button) {
+  button.style.transform = 'scale(0.98)';
+  setTimeout(() => {
+    button.style.transform = '';
+  }, 100);
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('=== DOM Content Loaded ===');
+  
+  // Initialize theme system
+  initializeTheme();
   
   // Update version info from package.json using contextBridge
   const versionInfoElement = document.querySelector('.version-info');
@@ -848,6 +864,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fillFormBtn = DOM_ELEMENTS.fillFormBtn();
   if (fillFormBtn) {
     fillFormBtn.addEventListener('click', async () => {
+      addButtonClickEffect(fillFormBtn);
+      
       const selectedIndex = DOM_ELEMENTS.applicationSelect().value;
       const formData = formDataList[selectedIndex];
       const headless = DOM_ELEMENTS.headlessMode().checked;
@@ -859,6 +877,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       resetFormFillingDisplay();
+      addLoadingState(fillFormBtn);
+      
       try {
         const result = await window.api.runFormFiller(formData, headless, timeout);
         
@@ -871,6 +891,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (error) {
         console.error('Error running form filler:', error);
         addMessage(`Error: ${error.message}`, 'error');
+      } finally {
+        removeLoadingState(fillFormBtn);
       }
     });
   }
@@ -881,7 +903,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 设置刷新按钮
   const refreshButton = DOM_ELEMENTS.refreshButton();
   if (refreshButton) {
-    refreshButton.addEventListener('click', handleRefresh);
+    refreshButton.addEventListener('click', async () => {
+      addButtonClickEffect(refreshButton);
+      addLoadingState(refreshButton);
+      
+      try {
+        await handleRefresh();
+      } finally {
+        removeLoadingState(refreshButton);
+      }
+    });
   }
 
   // Set up update status listener
@@ -908,32 +939,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Setup Jobbank inviter event listeners
   const startInviterBtn = DOM_ELEMENTS.startInviterBtn();
   if (startInviterBtn) {
-    startInviterBtn.addEventListener('click', handleStartInviter);
+    startInviterBtn.addEventListener('click', async () => {
+      addButtonClickEffect(startInviterBtn);
+      addLoadingState(startInviterBtn);
+      
+      try {
+        await handleStartInviter();
+      } finally {
+        removeLoadingState(startInviterBtn);
+      }
+    });
   }
 
   const refreshRcicBtn = DOM_ELEMENTS.refreshRcicBtn();
   if (refreshRcicBtn) {
-    refreshRcicBtn.addEventListener('click', handleRefreshJobbanks);
-  }
-
-  const exitInviterBtn = DOM_ELEMENTS.exitInviterBtn();
-  if (exitInviterBtn) {
-    exitInviterBtn.addEventListener('click', async () => {
-      if (confirm('Are you sure you want to exit?')) {
-        await window.api.exitApp();
+    refreshRcicBtn.addEventListener('click', async () => {
+      addButtonClickEffect(refreshRcicBtn);
+      addLoadingState(refreshRcicBtn);
+      
+      try {
+        await handleRefreshJobbanks();
+      } finally {
+        removeLoadingState(refreshRcicBtn);
       }
     });
   }
+
+  // Exit inviter button removed - now handled by global exit button
   
   // Add job post button
   const addJobPostBtn = DOM_ELEMENTS.addJobPostBtn();
   if (addJobPostBtn) {
-    addJobPostBtn.addEventListener('click', addJobPostRow);
+    addJobPostBtn.addEventListener('click', () => {
+      addButtonClickEffect(addJobPostBtn);
+      addJobPostRow();
+    });
   }
   
   
   // Initialize remove buttons visibility
   updateRemoveButtonsVisibility();
+  
+  // Initialize UI state
+  checkJobPostsAndUpdateState();
 
   // Set up inviter callback listener
   window.api.onInviterCallbackInfo(updateInviterCallbackInfo);

@@ -2,15 +2,19 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Form Filler</title>
+  <title>FormBro</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
+  <!-- Dark Mode Toggle -->
+  <div class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
+    <i class="fas fa-moon" id="themeIcon"></i>
+  </div>
   <!-- Login Interface -->
   <div id="login-container" class="login-container">
     <div class="login-box">
-      <img src="assets/fb.jpg" alt="FormBro Logo" class="logo">
+      <img src="assets/logo-light.png" alt="FormBro Logo" class="logo">
       <h1>Welcome Back</h1>
       <p class="subtitle">Please login to continue</p>
       <p class="version-info">Loading version...</p>
@@ -31,21 +35,28 @@
 
   <!-- Main Interface -->
   <div id="app-container" class="app-container hidden">
-    <!-- Logo -->
-    <div style="margin-top: 15px; margin-bottom: 15px; text-align: left;">
-      <img src="assets/fb.jpg" alt="FormBro Logo" class="logo" style="width: 100px; height: auto; display: inline-block;">
-    </div>
-    
-    <!-- Tab Navigation -->
-    <div class="tab-navigation">
-      <button class="tab-button active" data-tab="form-filling">Form Filling</button>
-      <button class="tab-button" data-tab="jobbank-inviter">Jobbank Inviter</button>
+    <!-- Top Navigation Bar -->
+    <div class="top-navbar">
+      <div class="navbar-left">
+        <img src="assets/logo-light.png" alt="FormBro Logo" class="navbar-logo logo">
+        <div class="tab-navigation">
+          <button class="tab-button active" data-tab="form-filling">Form Filling</button>
+          <button class="tab-button" data-tab="jobbank-inviter">Jobbank Inviter</button>
+        </div>
+      </div>
+      <div class="navbar-right">
+        <button id="exitButton" class="exit-button">
+          <i class="fas fa-sign-out-alt"></i>
+          Exit
+        </button>
+      </div>
     </div>
 
     <!-- Form Filling Tab -->
     <div id="form-filling-tab" class="tab-content active">
       <div class="form-filling-box">
-        <h2>Select an application to fill</h2>
+        <h2>Select Application</h2>
+        <p class="section-subtitle">Choose form to fill automatically</p>
       
       <div class="form-controls">
         <select id="application-select" class="application-select">
@@ -77,10 +88,6 @@
               <i class="fas fa-trash"></i>
               Delete
             </button>
-            <button id="exitButton" class="action-button secondary-button">
-              <i class="fas fa-sign-out-alt"></i>
-              Exit
-            </button>
           </div>
         </div>
       </div>
@@ -110,7 +117,8 @@
     <!-- Jobbank Inviter Tab -->
     <div id="jobbank-inviter-tab" class="tab-content hidden">
       <div class="form-filling-box">
-        <h2>Select an RCIC account to invite candidates</h2>
+        <h2>Select Account</h2>
+        <p class="section-subtitle">Choose RCIC account for invitations</p>
         
         <div class="form-controls">
           <select id="rcic-account-select" class="application-select">
@@ -128,12 +136,17 @@
                 <div class="job-posts-container" id="job-posts-container">
                   <div class="job-posts-list" id="job-posts-list">
                     <div class="job-post-row" data-index="0">
-                      <input type="text" class="job-post-id" placeholder="Job Post ID" title="Job Post ID from JobBank">
+                      <input type="text" class="job-post-id" placeholder="Enter Job Post ID" title="Job Post ID from JobBank">
                       <input type="number" class="minimum-stars" value="2" min="1" max="5" step="1" title="Minimum stars (1-5)" style="width: 120px;">
                       <button class="remove-job-post-btn action-button secondary-button" title="Remove this job post" style="display: none;">
                         <i class="fas fa-trash"></i>
                       </button>
                     </div>
+                  </div>
+                  <div class="empty-state" id="job-posts-empty" style="display: none;">
+                    <i class="fas fa-inbox" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+                    <p>No job posts added yet</p>
+                    <small>Click "Add" to begin</small>
                   </div>
                 </div>
               </div>
@@ -157,37 +170,65 @@
               <button id="refreshRcicBtn" class="action-button refresh-button" title="Refresh RCIC accounts">
                 Refresh
               </button>
-              <button id="exitInviterBtn" class="action-button secondary-button">
-                <i class="fas fa-sign-out-alt"></i>
-                Exit
-              </button>
             </div>
           </div>
         </div>
         
         <div id="inviter-details" class="form-details"></div>
         
-        <!-- Overall Progress -->
-        <div class="progress-container">
-          <h4>Overall Progress</h4>
-          <div class="progress">
-            <div id="overallProgressBar" class="progress-bar overall-progress" role="progressbar" style="width: 0%">0 / 0 Job Posts</div>
+        <!-- Progress Section - Only shown when processing -->
+        <div class="progress-section" id="progressSection" style="display: none;">
+          <div class="progress-container">
+            <div class="progress-header">
+              <h4>Overall Progress</h4>
+              <span class="progress-counter" id="progressCounter">0 / 0 Job Posts</span>
+            </div>
+            <div class="progress">
+              <div id="overallProgressBar" class="progress-bar overall-progress" role="progressbar" style="width: 0%"></div>
+            </div>
+          </div>
+          
+          <div class="progress-container">
+            <div class="progress-header">
+              <h4 id="currentJobTitle">Current Job Progress</h4>
+            </div>
+            <div class="progress">
+              <div id="inviterProgressBar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+            </div>
           </div>
         </div>
-        
-        <!-- Current Job Progress -->
-        <div class="progress-container">
-          <h4 id="currentJobTitle">Current Job Progress</h4>
-          <div class="progress">
-            <div id="inviterProgressBar" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+
+        <!-- Dynamic Status Area -->
+        <div class="status-area" id="statusArea">
+          <!-- Empty State -->
+          <div class="status-content empty-state" id="emptyState">
+            <i class="fas fa-inbox status-icon"></i>
+            <h3>Ready to Start</h3>
+            <p>Add job posts above to begin inviting candidates</p>
           </div>
-        </div>
-        
-        <!-- Messages and Statistics -->
-        <div class="callback-container">
-          <div id="inviterMessageList" class="message-list"></div>
-          <div id="invitationStats" class="invitation-stats hidden"></div>
-          <pre id="inviterCallbackInfo" class="callback-info"></pre>
+          
+          <!-- Ready State -->
+          <div class="status-content ready-state" id="readyState" style="display: none;">
+            <i class="fas fa-zap status-icon"></i>
+            <h3>Ready to Process</h3>
+            <p><span id="jobCount">0</span> job posts ready for invitations</p>
+            <small>Click "Start Inviting" to begin</small>
+          </div>
+          
+          <!-- Processing State -->
+          <div class="status-content processing-state" id="processingState" style="display: none;">
+            <div class="processing-spinner">
+              <i class="fas fa-spinner fa-spin status-icon"></i>
+            </div>
+            <h3>Processing Invitations</h3>
+            <p>Please do not close this window</p>
+          </div>
+          
+          <!-- Results State -->
+          <div class="status-content results-state" id="resultsState" style="display: none;">
+            <div id="inviterMessageList" class="message-list"></div>
+            <div id="invitationStats" class="invitation-stats hidden"></div>
+          </div>
         </div>
       </div>
     </div>

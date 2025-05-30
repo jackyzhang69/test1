@@ -40,6 +40,27 @@ mongo "mongodb+srv://jacky:Zxy690211@noah.yi5fo.mongodb.net/visa?retryWrites=tru
 
 ## JobBank Inviter功能
 
+### 🚨 极其重要：只登录一次
+- **必须使用 `runJobbankInviterMultiple` API** - 批量处理所有job posts
+- **绝对不要循环调用单个job的API** - 那会导致多次登录
+- **后端已实现 `inviteMultipleJobPosts` 方法** - 一次登录，处理所有任务
+- **前端调用方式**：
+  ```javascript
+  // 正确 ✓
+  const result = await window.api.runJobbankInviterMultiple(
+    rcicData,
+    jobPosts,  // 传递所有job posts数组
+    itemsPerPage,
+    headless,
+    timeout
+  );
+  
+  // 错误 ✗ - 不要这样做！
+  for (let job of jobPosts) {
+    await window.api.runJobbankInviter(...);  // 这会导致多次登录
+  }
+  ```
+
 ### 关键映射关系
 - **LMIA portal就是JobBank portal** - 使用相同的登录凭据
 - **LMIA SQA就是JobBank SQA** - 使用相同的安全问题
@@ -59,6 +80,9 @@ mongo "mongodb+srv://jacky:Zxy690211@noah.yi5fo.mongodb.net/visa?retryWrites=tru
 - formfillingdata集合：使用user_id字段（字符串格式）
 - rcic集合：使用owner_ids字段（ObjectId数组格式）
 - MongoDB Playground显示的`{"$oid": "..."}`只是JSON表示，实际存储的是ObjectId对象
+
+## UI设计规范
+生成界面时必须参考 `docs/ui_style.md` 文件，确保界面风格一致性。
 
 ## 测试和验证命令
 ```bash
