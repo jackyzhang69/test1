@@ -27,7 +27,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.744.0",
     "@electron/notarize": "^2.5.0",
     "@playwright/test": "^1.42.1",
     "aws-sdk": "^2.1692.0",
@@ -36,7 +35,6 @@
     "electron-updater": "^6.3.9",
     "express": "^5.1.0",
     "mongodb": "^6.3.0",
-    "pbkdf2": "^3.1.2",
     "playwright": "^1.42.1"
   },
   "devDependencies": {

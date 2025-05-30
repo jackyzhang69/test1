@@ -207,3 +207,9 @@ journal.md
 
 .local-chromium/
 .env.template
+
+# System files
+.DS_Store
+
+# Temporary files
+tmp/

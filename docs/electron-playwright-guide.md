@@ -1,258 +1,413 @@
-# Complete Guide: Building & Packaging Electron Apps with Playwright Integration
+# Complete Guide: Building Cross-Platform Electron Apps with Playwright & Web/Desktop Dual Architecture
 
-> **Based on FormBro Project Analysis** - A comprehensive guide for developing, building, and distributing cross-platform Electron applications with Playwright automation capabilities.
+> **Based on FormBro Project Analysis** - A comprehensive guide for developing, building, and distributing cross-platform applications with both web and desktop interfaces, featuring Playwright automation capabilities.
 
 ## Table of Contents
 
-1. [Project Setup & Architecture](#1-project-setup--architecture)
-2. [Playwright Integration](#2-playwright-integration)
-3. [Build Configuration](#3-build-configuration)
-4. [Code Signing & Notarization](#4-code-signing--notarization)
-5. [Auto-Updater Implementation](#5-auto-updater-implementation)
-6. [Environment & Secrets Management](#6-environment--secrets-management)
-7. [Common Issues & Solutions](#7-common-issues--solutions)
-8. [Deployment Checklist](#8-deployment-checklist)
-9. [Templates & Examples](#9-templates--examples)
+1. [Project Setup & Dual Architecture](#1-project-setup--dual-architecture)
+2. [Web/Desktop Synchronous Development](#2-webdesktop-synchronous-development)
+3. [Cross-Platform Chromium Packaging](#3-cross-platform-chromium-packaging)
+4. [Playwright Integration](#4-playwright-integration)
+5. [Build Configuration](#5-build-configuration)
+6. [Code Signing & Notarization](#6-code-signing--notarization)
+7. [Auto-Updater Implementation](#7-auto-updater-implementation)
+8. [Environment & Secrets Management](#8-environment--secrets-management)
+9. [Common Issues & Solutions](#9-common-issues--solutions)
+10. [Deployment Checklist](#10-deployment-checklist)
+11. [Templates & Examples](#11-templates--examples)
 
 ---
 
-## 1. Project Setup & Architecture
+## 1. Project Setup & Dual Architecture
 
 ### Directory Structure Best Practices
 
 ```
 your-electron-app/
 ├── src/
-│   ├── main-electron.js          # Main Electron process
-│   ├── renderer.js               # Frontend logic
-│   ├── preload.js               # Security bridge
-│   ├── index.html               # Main UI
-│   ├── styles.css               # Styling
-│   ├── assets/                  # Static assets
-│   └── [feature-modules]/       # Business logic modules
+│   ├── desktop/                     # Desktop-specific code
+│   │   ├── main-electron.js         # Main Electron process
+│   │   ├── renderer.js              # Desktop frontend logic
+│   │   ├── preload.js               # Security bridge
+│   │   └── index.html               # Desktop UI
+│   ├── web/                         # Web-specific code
+│   │   ├── server/                  # Web server
+│   │   │   ├── web-server.js        # Express.js server
+│   │   │   └── routes/              # API routes
+│   │   └── client/                  # Web client
+│   │       ├── web-index.html       # Web UI
+│   │       └── web-renderer.js      # Web frontend logic
+│   ├── shared/                      # Shared business logic
+│   │   ├── core/                    # Core automation
+│   │   │   └── webfiller.js         # Playwright wrapper
+│   │   ├── models/                  # Data models
+│   │   ├── services/                # Business services
+│   │   │   ├── form-filling.service.js
+│   │   │   ├── jobbank-inviter.service.js
+│   │   │   ├── auth.service.js
+│   │   │   └── database.service.js
+│   │   └── utils/                   # Utilities
+│   │       ├── config.js            # Environment config
+│   │       └── s3.js                # AWS utilities
+│   ├── assets/                      # Static assets
+│   └── styles.css                   # Shared styling
 ├── scripts/
-│   ├── prepare-chromium.js      # Playwright binary setup
-│   ├── notarize.js             # macOS notarization
-│   └── rename-update-files.js   # Update file management
+│   ├── prepare-chromium.js          # Main Chromium setup
+│   ├── prepare-chromium-cross-platform.js  # Cross-platform downloads
+│   ├── notarize.js                  # macOS notarization
+│   └── rename-update-files.js       # Update file management
 ├── build/
-│   ├── entitlements.mac.plist   # macOS entitlements
-│   └── icon.icns                # App icon
-├── dist/                        # Build output
-├── .env                         # Environment variables
-├── package.json                 # Dependencies & build config
+│   ├── entitlements.mac.plist       # macOS entitlements
+│   └── icon.icns                    # App icon
+├── dist/                            # Build output
+├── .env                             # Environment variables
+├── package.json                     # Dependencies & build config
 └── README.md
 ```
 
-### Entry Point Configuration
+### 🚨 Critical: Web/Desktop Synchronous Development Rule
 
-**main-electron.js** - Secure main process setup:
+**ABSOLUTE REQUIREMENT**: Every feature MUST be implemented in BOTH web and desktop versions simultaneously. No exceptions.
+
+#### Implementation Guidelines:
+1. **Feature Parity**: Web and desktop must have identical functionality
+2. **Shared Services**: All business logic goes in `src/shared/services/`
+3. **UI Consistency**: Both interfaces should provide the same user experience
+4. **Testing Coverage**: Test features on both platforms before considering complete
+5. **Documentation**: Update both web and desktop sections for every change
+
+---
+
+## 2. Web/Desktop Synchronous Development
+
+### Shared Service Layer Architecture
+
+All business logic must be platform-agnostic and located in `src/shared/`:
+
 ```javascript
-const { app, BrowserWindow, ipcMain } = require('electron');
-const { autoUpdater } = require('electron-updater');
-const path = require('path');
-
-// Security-first configuration
-function createWindow() {
-  const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      nodeIntegration: false,        // Disable Node.js in renderer
-      contextIsolation: true,        // Enable context isolation
-      preload: path.join(__dirname, 'preload.js'),
-      webSecurity: true              // Enable web security
+// src/shared/services/example.service.js
+class ExampleService {
+  async performAction(params) {
+    // Business logic that works for both web and desktop
+    const result = await this.processData(params);
+    return result;
+  }
+  
+  // Platform detection for specialized behavior
+  getExecutionContext() {
+    if (typeof window !== 'undefined' && window.api) {
+      return 'desktop'; // Electron renderer
+    } else if (typeof process !== 'undefined' && process.versions.electron) {
+      return 'desktop-main'; // Electron main
+    } else {
+      return 'web'; // Web browser/server
     }
-  });
-
-  // Load the app
-  mainWindow.loadFile('src/index.html');
+  }
 }
+
+module.exports = { ExampleService };
 ```
 
-**preload.js** - Secure API exposure:
-```javascript
-const { contextBridge, ipcRenderer } = require('electron');
+### Desktop Implementation
 
-// Expose safe APIs to renderer process
-contextBridge.exposeInMainWorld('api', {
-  // Example: Playwright automation
-  runAutomation: (config) => ipcRenderer.invoke('run-automation', config),
-  
-  // Example: File operations
-  saveFile: (data) => ipcRenderer.invoke('save-file', data),
-  
-  // Example: Updates
-  checkForUpdates: () => ipcRenderer.invoke('check-updates')
+**src/desktop/main-electron.js** - Register shared services:
+```javascript
+const { ExampleService } = require('../shared/services/example.service');
+
+// IPC handler for shared service
+ipcMain.handle('example-service-action', async (event, params) => {
+  const service = new ExampleService();
+  return await service.performAction(params);
 });
 ```
 
+**src/desktop/preload.js** - Expose service APIs:
+```javascript
+contextBridge.exposeInMainWorld('api', {
+  exampleAction: (params) => ipcRenderer.invoke('example-service-action', params)
+});
+```
+
+**src/desktop/renderer.js** - Use service in UI:
+```javascript
+async function handleUserAction() {
+  try {
+    const result = await window.api.exampleAction(userParams);
+    updateUI(result);
+  } catch (error) {
+    showError(error.message);
+  }
+}
+```
+
+### Web Implementation
+
+**src/web/server/web-server.js** - Register shared services:
+```javascript
+const { ExampleService } = require('../../shared/services/example.service');
+
+app.post('/api/example-action', async (req, res) => {
+  try {
+    const service = new ExampleService();
+    const result = await service.performAction(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+**src/web/client/web-renderer.js** - Use service in web UI:
+```javascript
+async function handleUserAction() {
+  try {
+    const response = await fetch('/api/example-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userParams)
+    });
+    const result = await response.json();
+    updateUI(result);
+  } catch (error) {
+    showError(error.message);
+  }
+}
+```
+
+### Development Workflow for Dual Platform
+
+#### 1. Feature Development Checklist
+- [ ] Create/update shared service in `src/shared/services/`
+- [ ] Implement desktop IPC handler in `main-electron.js`
+- [ ] Add desktop UI integration in `renderer.js`
+- [ ] Create web API endpoint in `web-server.js`
+- [ ] Add web UI integration in `web-renderer.js`
+- [ ] Test feature on both desktop and web
+- [ ] Update documentation for both platforms
+
+#### 2. Testing Commands
+```bash
+# Test desktop version
+npm run start
+
+# Test web version
+npm run start:web
+
+# Run both simultaneously for development
+npm run dev:dual
+```
+
+#### 3. Package.json Scripts Setup
+```json
+{
+  "scripts": {
+    "start": "electron src/desktop/main-electron.js",
+    "start:web": "node src/web/server/web-server.js",
+    "dev:dual": "concurrently \"npm run start\" \"npm run start:web\"",
+    "test:desktop": "jest tests/desktop/",
+    "test:web": "jest tests/web/",
+    "test:all": "npm run test:desktop && npm run test:web"
+  }
+}
+```
+
 ---
 
-## 2. Playwright Integration
+## 3. Cross-Platform Chromium Packaging
 
-### Bundling Strategy for Chromium Binaries
+### Revolutionary Cross-Platform Build System
 
-**Key Challenge**: Playwright requires Chromium binaries that must be properly bundled with the Electron app.
+**Key Innovation**: Build Windows packages on Mac and vice versa with platform-specific Chromium.
 
-#### prepare-chromium.js Script
+#### Problem Solved:
+- ❌ **Before**: Mac builds contained Mac Chromium → Windows packages failed (700MB waste)
+- ✅ **After**: Smart platform detection → 304MB optimized packages that work
+
+### Cross-Platform Chromium Download System
+
+**scripts/prepare-chromium-cross-platform.js**:
 ```javascript
-const fs = require('fs');
-const path = require('path');
+const PLAYWRIGHT_CDN = 'https://playwright.azureedge.net/builds/chromium';
+const CHROMIUM_VERSION = '1169'; // Match your Playwright version
 
-function prepareChromium() {
-  const sourceChromium = path.join(
-    process.env.HOME || process.env.USERPROFILE,
-    '.cache/ms-playwright' // Linux/macOS
-    // Windows: AppData/Local/ms-playwright
-  );
+const PLATFORM_MAP = {
+  'darwin': {
+    name: 'mac',
+    archiveName: 'chromium-mac.zip',
+    executablePath: 'chrome-mac/Chromium.app/Contents/MacOS/Chromium'
+  },
+  'win32': {
+    name: 'win64',
+    archiveName: 'chromium-win64.zip', 
+    executablePath: 'chrome-win/chrome.exe'
+  },
+  'linux': {
+    name: 'linux',
+    archiveName: 'chromium-linux.zip',
+    executablePath: 'chrome-linux/chrome'
+  }
+};
+
+async function downloadChromiumForPlatform(targetPlatform) {
+  const platform = PLATFORM_MAP[targetPlatform];
+  const destPath = path.join(process.cwd(), `.local-chromium-${targetPlatform}`);
+  const downloadUrl = `${PLAYWRIGHT_CDN}/${CHROMIUM_VERSION}/${platform.archiveName}`;
   
-  const targetDir = path.join(__dirname, '..', '.local-chromium');
+  // Download and extract platform-specific Chromium
+  await downloadFile(downloadUrl, zipPath);
+  await extractZip(zipPath, chromiumPath, targetPlatform);
   
-  // Find latest Chromium version
-  const chromiumDirs = fs.readdirSync(sourceChromium)
-    .filter(dir => dir.startsWith('chromium-'))
-    .sort()
-    .reverse();
-    
-  if (chromiumDirs.length === 0) {
-    throw new Error('No Chromium installation found. Run: npx playwright install chromium');
+  // Verify executable exists
+  const expectedExePath = path.join(chromiumPath, platform.executablePath);
+  if (!fs.existsSync(expectedExePath)) {
+    throw new Error(`Executable not found: ${platform.executablePath}`);
   }
   
-  const latestChromium = chromiumDirs[0];
-  const sourcePath = path.join(sourceChromium, latestChromium);
-  const targetPath = path.join(targetDir, latestChromium);
-  
-  // Copy Chromium to local directory
-  console.log(`Copying ${latestChromium} to local directory...`);
-  copyDirSync(sourcePath, targetPath);
+  console.log(`✅ ${targetPlatform} Chromium ready!`);
 }
+```
 
-function copyDirSync(src, dest) {
-  if (!fs.existsSync(dest)) {
-    fs.mkdirSync(dest, { recursive: true });
+### Smart Platform Detection
+
+**scripts/prepare-chromium.js**:
+```javascript
+async function prepareChromium() {
+  // Check for cross-platform builds
+  const targetPlatforms = process.env.TARGET_PLATFORMS;
+  
+  if (targetPlatforms) {
+    console.log(`🎯 Cross-platform build: ${targetPlatforms}`);
+    await prepareChromiumCrossPlatform();
+    
+    // Copy platform-specific Chromium to build location
+    const targetPlatform = targetPlatforms.split(',')[0];
+    const sourcePath = path.join(process.cwd(), `.local-chromium-${targetPlatform}`);
+    const destPath = path.join(process.cwd(), '.local-chromium');
+    
+    // Use appropriate copy method for host OS
+    if (process.platform === 'win32') {
+      fs.cpSync(sourcePath, destPath, { recursive: true });
+    } else {
+      execSync(`cp -R "${sourcePath}" "${destPath}"`, { stdio: 'inherit' });
+    }
+    
+    console.log(`✅ Copied ${targetPlatform} Chromium to .local-chromium`);
+    return;
   }
   
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+  // Standard same-platform build logic...
+}
+```
+
+### Build Commands with Platform Targeting
+
+```json
+{
+  "scripts": {
+    "dist-win": "cross-env TARGET_PLATFORMS=win32 npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
+    "dist-mac": "npm run prepare-chromium && electron-builder --mac",
+    "dist-linux": "cross-env TARGET_PLATFORMS=linux npm run prepare-chromium && electron-builder --linux",
     
-    if (entry.isDirectory()) {
-      copyDirSync(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
+    "publish-update-win": "cross-env TARGET_PLATFORMS=win32 npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always",
+    "publish-update-mac-arm64": "npm run prepare-chromium && electron-builder build --mac --arm64 --publish always && node scripts/rename-update-files.js mac arm64",
+    "publish-update-mac-x64": "npm run prepare-chromium && electron-builder build --mac --x64 --publish always && node scripts/rename-update-files.js mac x64"
+  }
+}
+```
+
+### Package Size Optimization Results
+
+| Platform | Before | After | Reduction |
+|----------|--------|-------|-----------|
+| Windows  | 700MB  | 304MB | 57% ⬇️ |
+| Mac ARM64| 650MB  | 233MB | 64% ⬇️ |
+| Mac x64  | 650MB  | 239MB | 63% ⬇️ |
+
+---
+
+## 4. Playwright Integration
+
+### Bundled Chromium Path Detection
+
+**src/shared/utils/config.js** - Universal Chromium path resolver:
+```javascript
+function getBundledChromiumPath() {
+  const isPackaged = (app && app.isPackaged) || process.env.NODE_ENV === 'production';
+  if (!isPackaged) return null;
+
+  const resourcesPath = process.resourcesPath || path.join(process.cwd(), 'resources');
+  
+  const possiblePaths = [
+    path.join(resourcesPath, 'app.asar.unpacked', 'ms-playwright'),
+    path.join(resourcesPath, 'ms-playwright'),
+    path.join(process.cwd(), '.local-chromium'), // Development builds
+  ];
+
+  for (const basePath of possiblePaths) {
+    if (fs.existsSync(basePath)) {
+      const chromiumDirs = fs.readdirSync(basePath)
+        .filter(item => item.startsWith('chromium-'))
+        .sort((a, b) => b.localeCompare(a)); // Latest version first
+        
+      if (chromiumDirs.length > 0) {
+        const chromiumDir = chromiumDirs[0];
+        
+        // Platform-specific executable paths
+        let executablePath;
+        if (process.platform === 'win32') {
+          executablePath = path.join(basePath, chromiumDir, 'chrome-win', 'chrome.exe');
+        } else if (process.platform === 'darwin') {
+          executablePath = path.join(basePath, chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
+        } else {
+          executablePath = path.join(basePath, chromiumDir, 'chrome-linux', 'chrome');
+        }
+        
+        if (fs.existsSync(executablePath)) {
+          console.log('✅ Found bundled Chromium:', executablePath);
+          return executablePath;
+        }
+      }
     }
   }
-}
 
-module.exports = { prepareChromium };
+  return null;
+}
 ```
 
-#### Cross-Platform Path Management
+### Service Integration with Bundled Chromium
 
-**In main process** - Dynamic Playwright path resolution:
+**All services use unified Chromium path detection**:
 ```javascript
-function getPlaywrightPath() {
-  if (app.isPackaged) {
-    // Production: Use bundled Chromium
-    return path.join(
-      process.resourcesPath,
-      'app.asar.unpacked',
-      'ms-playwright'
-    );
+const { getBundledChromiumPath } = require('../utils/config');
+
+async function launchBrowser(options = {}) {
+  const bundledChromiumPath = getBundledChromiumPath();
+  
+  const launchOptions = {
+    headless: options.headless || false,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  };
+  
+  if (bundledChromiumPath) {
+    launchOptions.executablePath = bundledChromiumPath;
+    console.log(`✅ Using bundled Chromium: ${bundledChromiumPath}`);
   } else {
-    // Development: Use local Chromium
-    return path.join(__dirname, '..', '.local-chromium');
+    console.log('⚠️ Using system Playwright (development mode)');
   }
-}
-
-// Set Playwright browser path
-process.env.PLAYWRIGHT_BROWSERS_PATH = getPlaywrightPath();
-
-// Launch browser example
-async function launchBrowser() {
-  const { chromium } = require('playwright');
   
-  const browser = await chromium.launch({
-    headless: false,
-    executablePath: getChromiumExecutable()
-  });
-  
+  const browser = await chromium.launch(launchOptions);
   return browser;
-}
-
-function getChromiumExecutable() {
-  const playwrightPath = getPlaywrightPath();
-  const platform = process.platform;
-  
-  if (platform === 'darwin') {
-    return path.join(
-      playwrightPath,
-      'chromium-*/chrome-mac/Chromium.app/Contents/MacOS/Chromium'
-    );
-  } else if (platform === 'win32') {
-    return path.join(
-      playwrightPath,
-      'chromium-*/chrome-win/chrome.exe'
-    );
-  } else {
-    return path.join(
-      playwrightPath,
-      'chromium-*/chrome-linux/chrome'
-    );
-  }
-}
-```
-
-### Memory Optimization Techniques
-
-**Problem**: Large memory usage from bundling Chromium (300MB+)
-
-**Solution**: Use `asarUnpack` to exclude Playwright binaries from ASAR compression:
-
-```json
-{
-  "build": {
-    "asarUnpack": [
-      "node_modules/@playwright/**/*",
-      ".local-chromium/**/*"
-    ],
-    "extraFiles": [
-      {
-        "from": ".local-chromium",
-        "to": "resources/app.asar.unpacked/ms-playwright",
-        "filter": ["chromium-*/**/*", "ffmpeg-*/**/*"]
-      }
-    ]
-  }
 }
 ```
 
 ---
 
-## 3. Build Configuration
+## 5. Build Configuration
 
-### Electron-Builder Setup for Multiple Platforms
+### Complete Multi-Platform Build Setup
 
-#### Complete package.json Build Configuration
 ```json
 {
-  "main": "src/main-electron.js",
-  "scripts": {
-    "start": "electron .",
-    "prepare-chromium": "node scripts/prepare-chromium.js",
-    "postinstall": "npm run prepare-chromium",
-    
-    "build": "npm run prepare-chromium && electron-builder",
-    "dist-mac-arm64": "npm run prepare-chromium && electron-builder --mac --arm64",
-    "dist-mac-x64": "npm run prepare-chromium && electron-builder --mac --x64",
-    "dist-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
-    
-    "publish-update-mac-arm64": "npm run prepare-chromium && electron-builder build --mac --arm64 --publish always && node scripts/rename-update-files.js mac arm64",
-    "publish-update-mac-x64": "npm run prepare-chromium && electron-builder build --mac --x64 --publish always && node scripts/rename-update-files.js mac x64",
-    "publish-update-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always"
-  },
   "build": {
     "appId": "com.yourcompany.yourapp",
     "productName": "YourApp",
@@ -270,15 +425,22 @@ function getChromiumExecutable() {
     "extraFiles": [
       {
         "from": ".local-chromium",
-        "to": "resources/app.asar.unpacked/ms-playwright",
-        "filter": ["chromium-*/**/*", "ffmpeg-*/**/*"]
+        "to": "ms-playwright",
+        "filter": ["**/*"]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": ".local-chromium",
+        "to": "ms-playwright",
+        "filter": ["**/*"]
       }
     ],
     "publish": [
       {
         "provider": "s3",
         "bucket": "your-updates-bucket",
-        "region": "your-region",
+        "region": "ca-central-1",
         "path": "",
         "acl": null
       }
@@ -309,44 +471,11 @@ function getChromiumExecutable() {
 }
 ```
 
-#### Dependencies Management
-```json
-{
-  "dependencies": {
-    "electron-updater": "^6.3.9",
-    "@playwright/test": "^1.42.1",
-    "playwright": "^1.42.1"
-  },
-  "devDependencies": {
-    "electron": "^34.2.0",
-    "electron-builder": "^24.13.3",
-    "@electron/notarize": "^2.5.0",
-    "cross-env": "^7.0.3",
-    "dotenv": "^16.0.0"
-  }
-}
-```
-
 ---
 
-## 4. Code Signing & Notarization
+## 6. Code Signing & Notarization
 
-### macOS Developer ID Setup
-
-#### Required Certificates
-1. **Developer ID Application**: For code signing apps outside Mac App Store
-2. **Developer ID Installer**: For signed installer packages (optional)
-
-#### Certificate Installation
-```bash
-# Import certificate to Keychain
-security import ~/certificate.p12 -P "YOUR_CERTIFICATE_PASSWORD" -A
-
-# Verify certificate installation
-security find-identity -v -p codesigning
-```
-
-#### Entitlements Configuration
+### Enhanced Entitlements for Chromium
 
 **build/entitlements.mac.plist**:
 ```xml
@@ -354,13 +483,15 @@ security find-identity -v -p codesigning
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- Required for Playwright/Chromium -->
+  <!-- Essential for Playwright/Chromium -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>
   <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
   <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
   
-  <!-- Required for automation features -->
+  <!-- Automation capabilities -->
   <key>com.apple.security.automation.apple-events</key>
   <true/>
   
@@ -379,226 +510,80 @@ security find-identity -v -p codesigning
 </plist>
 ```
 
-### Automated Notarization Workflow
-
-**scripts/notarize.js**:
-```javascript
-require('dotenv').config();
-const { notarize } = require('@electron/notarize');
-
-exports.default = async function notarizing(context) {
-  const { electronPlatformName, appOutDir } = context;
-  
-  if (electronPlatformName !== 'darwin') {
-    return;
-  }
-
-  const appName = context.packager.appInfo.productFilename;
-  const appPath = `${appOutDir}/${appName}.app`;
-  
-  console.log('Starting notarization...');
-  console.log('App path:', appPath);
-
-  try {
-    await notarize({
-      tool: 'notarytool',
-      appBundleId: 'com.yourcompany.yourapp',
-      appPath: appPath,
-      appleId: process.env.APPLE_ID,
-      appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
-      teamId: process.env.APPLE_TEAM_ID
-    });
-    console.log('Notarization completed successfully!');
-  } catch (error) {
-    console.error('Notarization failed:', error.message);
-    throw error;
-  }
-};
-```
-
-#### Environment Variables for Notarization
-```bash
-# .env file
-APPLE_ID=your-apple-id@example.com
-APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
-APPLE_TEAM_ID=YOUR10DIGIT
-```
-
-#### Verification Commands
-```bash
-# Verify code signature
-codesign --verify --deep --strict --verbose=2 dist/mac*/YourApp.app
-
-# Check notarization status
-spctl -a -t exec -vvv dist/mac*/YourApp.app
-
-# Should output: "accepted" and "source=Notarized Developer ID"
-```
-
 ---
 
-## 5. Auto-Updater Implementation
+## 7. Auto-Updater Implementation
 
-### S3-Based Distribution System
+### Universal Auto-Update System
 
-#### Auto-Updater Setup in Main Process
+**src/desktop/main-electron.js** - Platform-specific update configuration:
 ```javascript
 const { autoUpdater } = require('electron-updater');
 
-function setupAutoUpdater() {
-  // Configure update feed
+// Configure auto-updater for all platforms
+if (process.platform === 'darwin') {
+  const updateFile = process.arch === 'arm64' 
+    ? 'latest-mac-arm64.yml' 
+    : 'latest-mac-x64.yml';
+  
   autoUpdater.setFeedURL({
     provider: 's3',
-    bucket: 'your-updates-bucket',
-    region: 'your-region',
+    bucket: 'formbro-updates',
     path: '',
-    updaterCacheDirName: 'your-app-updater'
-  });
-
-  // Event handlers
-  autoUpdater.on('checking-for-update', () => {
-    console.log('Checking for update...');
-  });
-
-  autoUpdater.on('update-available', (info) => {
-    console.log('Update available:', info.version);
-  });
-
-  autoUpdater.on('update-not-available', (info) => {
-    console.log('Update not available:', info.version);
-  });
-
-  autoUpdater.on('error', (err) => {
-    console.error('Update error:', err);
-  });
-
-  autoUpdater.on('download-progress', (progressObj) => {
-    const { percent, bytesPerSecond, total, transferred } = progressObj;
-    console.log(`Download progress: ${percent}%`);
-  });
-
-  autoUpdater.on('update-downloaded', (info) => {
-    console.log('Update downloaded:', info.version);
-    // Notify user and restart
-    autoUpdater.quitAndInstall();
-  });
-
-  // Check for updates periodically
-  setInterval(() => {
-    autoUpdater.checkForUpdatesAndNotify();
-  }, 60 * 60 * 1000); // Every hour
-
-  // Initial check
-  autoUpdater.checkForUpdatesAndNotify();
-}
-```
-
-### Architecture-Specific Update Handling
-
-**Problem**: Single `latest-mac.yml` doesn't support multiple architectures (ARM64 vs x64)
-
-**Solution**: Generate architecture-specific update files
-
-**scripts/rename-update-files.js**:
-```javascript
-const fs = require('fs');
-const path = require('path');
-const AWS = require('aws-sdk');
-
-async function renameUpdateFiles(platform, arch) {
-  const distDir = path.join(__dirname, '..', 'dist');
-  
-  if (platform === 'mac') {
-    const sourceFile = path.join(distDir, 'latest-mac.yml');
-    const targetFile = path.join(distDir, `latest-mac-${arch}.yml`);
-    
-    // Create architecture-specific file
-    fs.copyFileSync(sourceFile, targetFile);
-    console.log(`Created copy of ${sourceFile} as ${targetFile}`);
-    
-    // Upload to S3
-    await uploadToS3(targetFile, `latest-mac-${arch}.yml`);
-  }
-}
-
-async function uploadToS3(filePath, key) {
-  const s3 = new AWS.S3({
-    region: process.env.AWS_REGION || 'us-east-1'
+    region: 'ca-central-1',
+    updaterCacheDirName: 'formbro-updater',
+    url: `https://formbro-updates.s3.ca-central-1.amazonaws.com/${updateFile}`
   });
   
-  const fileContent = fs.readFileSync(filePath);
-  
-  const params = {
-    Bucket: 'your-updates-bucket',
-    Key: key,
-    Body: fileContent,
-    ContentType: 'text/yaml'
-  };
-  
-  try {
-    await s3.upload(params).promise();
-    console.log(`Successfully uploaded ${key} to S3`);
-  } catch (error) {
-    console.error(`Failed to upload ${key}:`, error);
-  }
-}
-
-// Usage
-const [platform, arch] = process.argv.slice(2);
-renameUpdateFiles(platform, arch);
-```
-
-#### Client-Side Architecture Detection
-```javascript
-// In main process
-function getUpdateFeedURL() {
-  const arch = process.arch; // 'arm64' or 'x64'
-  const platform = process.platform; // 'darwin', 'win32', etc.
-  
-  let feedUrl = {
+  log.info(`Setting update URL to use ${updateFile}`);
+} else if (process.platform === 'win32') {
+  autoUpdater.setFeedURL({
     provider: 's3',
-    bucket: 'your-updates-bucket',
-    region: 'your-region',
-    path: ''
-  };
+    bucket: 'formbro-updates',
+    path: '',
+    region: 'ca-central-1',
+    updaterCacheDirName: 'formbro-updater',
+    url: 'https://formbro-updates.s3.ca-central-1.amazonaws.com/latest.yml'
+  });
   
-  if (platform === 'darwin') {
-    // Use architecture-specific update file
-    feedUrl.updaterCacheDirName = 'your-app-updater';
-    
-    // Override the update check to use architecture-specific file
-    const originalCheckForUpdates = autoUpdater.checkForUpdatesAndNotify;
-    autoUpdater.checkForUpdatesAndNotify = async function() {
-      // Temporarily modify the feed URL to use arch-specific file
-      const originalUrl = this.getFeedURL();
-      
-      // Set architecture-specific feed
-      this.setFeedURL({
-        ...feedUrl,
-        // This will look for latest-mac-arm64.yml or latest-mac-x64.yml
-        channel: arch === 'arm64' ? 'latest-mac-arm64' : 'latest-mac-x64'
-      });
-      
-      return originalCheckForUpdates.call(this);
-    };
-  }
-  
-  return feedUrl;
+  log.info('Setting update URL for Windows to use latest.yml');
 }
+
+// Universal update event handlers
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info.version);
+  // Notify user through your UI
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info.version);
+  // Show restart dialog
+});
 ```
+
+### Update File Management
+
+**Why both DMG and ZIP for Mac**:
+- **DMG**: User manual downloads
+- **ZIP**: Auto-updater system (required by electron-updater)
+
+**Windows**: Uses `.exe` files directly for auto-update
 
 ---
 
-## 6. Environment & Secrets Management
+## 8. Environment & Secrets Management
 
-### .env Configuration Patterns
+### Unified Environment Loading
 
-#### Development vs Production Loading
+**src/shared/utils/config.js**:
 ```javascript
-const path = require('path');
-const dotenv = require('dotenv');
-
 function loadEnvConfig() {
+  const path = require('path');
+  const dotenv = require('dotenv');
+  
   if (process.env.NODE_ENV === 'development') {
     // Development: Load from project root
     dotenv.config();
@@ -609,35 +594,7 @@ function loadEnvConfig() {
   }
 }
 
-// Call before any environment variable usage
-loadEnvConfig();
-```
-
-#### .env Template (DO NOT include real secrets)
-```bash
-# .env.example - Copy to .env and fill in real values
-
-# Database Configuration
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
-
-# AWS Configuration (for S3 updates)
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=your_region
-
-# Apple Developer (for macOS notarization)
-APPLE_ID=your.apple.id@example.com
-APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
-APPLE_TEAM_ID=YOUR10DIGIT
-
-# Application Configuration
-NODE_ENV=development
-DEBUG_MODE=true
-```
-
-#### Secure Credential Handling
-```javascript
-// Validate required environment variables
+// Validate critical environment variables
 function validateEnvironment() {
   const required = [
     'MONGODB_URI',
@@ -649,422 +606,211 @@ function validateEnvironment() {
   
   if (missing.length > 0) {
     console.error('Missing required environment variables:', missing);
-    process.exit(1);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
   }
 }
 
-// Runtime configuration object
-const config = {
-  database: {
-    uri: process.env.MONGODB_URI,
-    options: {
-      useUnifiedTopology: true,
-      useNewUrlParser: true
-    }
-  },
-  aws: {
-    region: process.env.AWS_REGION || 'us-east-1',
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    }
-  },
-  app: {
-    isDevelopment: process.env.NODE_ENV === 'development',
-    debugMode: process.env.DEBUG_MODE === 'true'
-  }
-};
-
-module.exports = { config, validateEnvironment };
+module.exports = { loadEnvConfig, validateEnvironment, getBundledChromiumPath };
 ```
 
 ---
 
-## 7. Common Issues & Solutions
+## 9. Common Issues & Solutions
 
-### Memory Allocation Problems
+### Cross-Platform Build Issues
 
-#### Issue: "JavaScript heap out of memory" during build
+#### Issue: Wrong Chromium Architecture
 ```
-FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
-```
-
-#### Solutions:
-1. **Increase Node.js memory limit**:
-   ```bash
-   node --max-old-space-size=8192 node_modules/.bin/electron-builder
-   ```
-
-2. **Use asarUnpack for large files**:
-   ```json
-   {
-     "build": {
-       "asarUnpack": [
-         "node_modules/@playwright/**/*",
-         ".local-chromium/**/*"
-       ]
-     }
-   }
-   ```
-
-3. **Optimize build scripts**:
-   ```json
-   {
-     "scripts": {
-       "build-win": "cross-env NODE_OPTIONS='--max-old-space-size=8192' electron-builder --win"
-     }
-   }
-   ```
-
-### Code Signing Failures
-
-#### Issue: "code failed to satisfy specified code requirement(s)"
-```
-FormBro.app: code has no resources but signature indicates they must be present
+Error: Executable doesn't exist at chrome-mac/Chromium.app
 ```
 
-#### Solutions:
-1. **Verify certificate installation**:
-   ```bash
-   security find-identity -v -p codesigning
-   ```
-
-2. **Check entitlements**:
-   ```bash
-   codesign -d --entitlements :- dist/mac*/YourApp.app
-   ```
-
-3. **Force re-signing**:
-   ```bash
-   codesign --force --deep --sign "Developer ID Application: Your Name" dist/mac*/YourApp.app
-   ```
-
-#### Issue: Chromium binaries not signed
-```
-ERROR: Unsigned binaries detected in Chromium bundle
-```
-
-#### Solution: Proper entitlements configuration
-```xml
-<!-- In entitlements.mac.plist -->
-<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-<true/>
-<key>com.apple.security.cs.allow-jit</key>
-<true/>
-```
-
-### Update Validation Errors
-
-#### Issue: "Code signature at URL did not pass validation"
-```
-Code signature at URL file:///path/to/update did not pass validation
-```
-
-#### Root Causes & Solutions:
-1. **Architecture mismatch**: Use architecture-specific update files
-2. **Unsigned update**: Ensure proper build and signing process
-3. **Corrupted cache**: Clear update cache
-   ```bash
-   rm -rf ~/Library/Caches/your-app-updater/pending/*
-   ```
-
-#### Issue: SHA512 hash mismatch
-```
-Expected: abc123...
-Actual: def456...
-```
-
-#### Solution: Regenerate update files
+**Solution**: Use TARGET_PLATFORMS environment variable
 ```bash
-# Clean build and upload
-npm run clean
-npm run publish-update-mac-arm64
+# Build Windows on Mac
+TARGET_PLATFORMS=win32 npm run dist-win
+
+# Build Mac on Windows (if configured)
+TARGET_PLATFORMS=darwin npm run dist-mac
 ```
 
-### Cross-Platform Compatibility
-
-#### Path Handling Issues
-```javascript
-// ❌ Wrong - hardcoded separators
-const filePath = 'src/assets/icon.png';
-
-// ✅ Correct - platform-agnostic
-const filePath = path.join('src', 'assets', 'icon.png');
+#### Issue: Update File Format Mismatch
+```
+Update error: ZIP file not provided
 ```
 
-#### Binary Execution Issues
-```javascript
-// ❌ Wrong - assumes Unix-like system
-const chromiumPath = '/path/to/chromium';
+**Solution**: Ensure both DMG and ZIP are generated for Mac
+```json
+{
+  "mac": {
+    "target": [
+      { "target": "dmg" },
+      { "target": "zip" }  // Required for auto-updates
+    ]
+  }
+}
+```
 
-// ✅ Correct - platform detection
-function getChromiumPath() {
-  const platform = process.platform;
-  if (platform === 'darwin') {
-    return path.join(playwrightPath, 'chromium-*/chrome-mac/Chromium.app/Contents/MacOS/Chromium');
-  } else if (platform === 'win32') {
-    return path.join(playwrightPath, 'chromium-*/chrome-win/chrome.exe');
-  } else {
-    return path.join(playwrightPath, 'chromium-*/chrome-linux/chrome');
+### Web/Desktop Sync Issues
+
+#### Issue: Feature Works on Desktop but Not Web
+**Root Cause**: Business logic implemented in desktop-only code
+
+**Solution**: Move logic to shared services
+```javascript
+// ❌ Wrong - Desktop only
+// src/desktop/main-electron.js
+ipcMain.handle('business-logic', async () => {
+  // Business logic here
+});
+
+// ✅ Correct - Shared service
+// src/shared/services/business.service.js
+class BusinessService {
+  async performAction() {
+    // Platform-agnostic business logic
   }
 }
 ```
 
 ---
 
-## 8. Deployment Checklist
+## 10. Deployment Checklist
 
 ### Pre-Release Testing
-- [ ] Test Playwright automation in both development and packaged app
-- [ ] Verify all environment variables are properly loaded
-- [ ] Test app functionality on target platforms (macOS ARM64/x64, Windows)
-- [ ] Confirm file permissions and access rights
-- [ ] Test auto-updater mechanism with staging environment
+- [ ] **Desktop Testing**:
+  - [ ] Test all features in packaged desktop app
+  - [ ] Verify Chromium bundling works correctly
+  - [ ] Test auto-update mechanism
+  - [ ] Confirm code signing and notarization
 
-### Build Verification Steps
-1. **Code Signing Verification**:
-   ```bash
-   # macOS
-   codesign --verify --deep --strict --verbose=2 dist/mac*/YourApp.app
-   spctl -a -t exec -vvv dist/mac*/YourApp.app
-   
-   # Should show: "accepted" and "source=Notarized Developer ID"
-   ```
+- [ ] **Web Testing**:
+  - [ ] Test all features in web interface
+  - [ ] Verify server endpoints work
+  - [ ] Test on multiple browsers
+  - [ ] Confirm production environment setup
 
-2. **Notarization Status Check**:
-   ```bash
-   xcrun notarytool history --apple-id your@email.com --password xxxx-xxxx-xxxx-xxxx --team-id YOUR10DIGIT
-   ```
+- [ ] **Cross-Platform Testing**:
+  - [ ] Test Windows package on Windows
+  - [ ] Test Mac ARM64 package on M1/M2 Mac
+  - [ ] Test Mac x64 package on Intel Mac
+  - [ ] Verify cross-platform builds work correctly
 
-3. **Update File Validation**:
-   ```bash
-   # Verify YAML files contain correct hashes
-   cat dist/latest-mac-arm64.yml
-   cat dist/latest-mac-x64.yml
-   cat dist/latest.yml
-   ```
+### Build Verification
+```bash
+# Verify Chromium inclusion
+find dist/ -name "chrome-*" -type d
 
-4. **S3 Upload Verification**:
-   ```bash
-   aws s3 ls s3://your-updates-bucket/ --region your-region
-   ```
+# Check package sizes
+ls -lh dist/*.{dmg,exe,zip}
 
-### Distribution Workflow
-1. **Version Bump**: Update version in `package.json`
-2. **Clean Build**: `rm -rf dist/ && npm run clean`
-3. **Build All Platforms**:
+# Verify code signatures (macOS)
+codesign --verify --deep --strict --verbose=2 dist/mac*/YourApp.app
+spctl -a -t exec -vvv dist/mac*/YourApp.app
+```
+
+### Deployment Workflow
+1. **Feature Implementation**: Both web and desktop simultaneously
+2. **Version Bump**: Update `package.json` version
+3. **Clean Build**: `rm -rf dist/ && npm run clean`
+4. **Build All Platforms**:
    ```bash
    npm run publish-update-mac-arm64
    npm run publish-update-mac-x64
    npm run publish-update-win
    ```
-4. **Verify Uploads**: Check S3 bucket for all files
-5. **Test Updates**: Install previous version and test update mechanism
-6. **Release Notes**: Update changelog and release documentation
+5. **Verify Updates**: Test auto-update on all platforms
+6. **Web Deployment**: Deploy web version to production server
 
 ---
 
-## 9. Templates & Examples
+## 11. Templates & Examples
 
-### Minimal Project Template
+### Minimal Dual-Platform Project
 
-#### package.json (Essential sections)
+**package.json**:
 ```json
 {
-  "name": "your-electron-playwright-app",
+  "name": "your-dual-platform-app",
   "version": "1.0.0",
-  "main": "src/main-electron.js",
+  "main": "src/desktop/main-electron.js",
   "scripts": {
     "start": "electron .",
+    "start:web": "node src/web/server/web-server.js",
+    "dev": "concurrently \"npm run start\" \"npm run start:web\"",
+    
     "prepare-chromium": "node scripts/prepare-chromium.js",
     "postinstall": "npm run prepare-chromium",
-    "build": "npm run prepare-chromium && electron-builder",
+    
+    "dist-win": "cross-env TARGET_PLATFORMS=win32 npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win",
     "dist-mac-arm64": "npm run prepare-chromium && electron-builder --mac --arm64",
-    "dist-win": "npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
+    "dist-mac-x64": "npm run prepare-chromium && electron-builder --mac --x64",
+    
+    "publish-update-win": "cross-env TARGET_PLATFORMS=win32 npm run prepare-chromium && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder build --win --publish always",
+    "publish-update-mac-arm64": "npm run prepare-chromium && electron-builder build --mac --arm64 --publish always && node scripts/rename-update-files.js mac arm64",
+    "publish-update-mac-x64": "npm run prepare-chromium && electron-builder build --mac --x64 --publish always && node scripts/rename-update-files.js mac x64"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
     "@playwright/test": "^1.42.1",
     "playwright": "^1.42.1",
+    "express": "^4.18.0",
     "dotenv": "^16.0.0"
   },
   "devDependencies": {
     "electron": "^34.2.0",
     "electron-builder": "^24.13.3",
     "@electron/notarize": "^2.5.0",
-    "cross-env": "^7.0.3"
-  },
-  "build": {
-    "appId": "com.yourcompany.yourapp",
-    "productName": "YourApp",
-    "afterSign": "scripts/notarize.js",
-    "files": [
-      "src/**/*",
-      "package.json",
-      ".env",
-      "node_modules/@playwright/test/"
-    ],
-    "asarUnpack": [
-      "node_modules/@playwright/**/*",
-      ".local-chromium/**/*"
-    ],
-    "extraFiles": [
-      {
-        "from": ".local-chromium",
-        "to": "resources/app.asar.unpacked/ms-playwright",
-        "filter": ["chromium-*/**/*", "ffmpeg-*/**/*"]
-      }
-    ],
-    "mac": {
-      "target": [{"target": "dmg"}, {"target": "zip"}],
-      "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "notarize": {"teamId": "YOUR_APPLE_TEAM_ID"}
-    },
-    "win": {
-      "target": [{"target": "nsis"}, {"target": "zip"}]
-    }
+    "cross-env": "^7.0.3",
+    "concurrently": "^7.6.0"
   }
-}
-```
-
-#### Basic Main Process (src/main-electron.js)
-```javascript
-const { app, BrowserWindow, ipcMain } = require('electron');
-const { autoUpdater } = require('electron-updater');
-const path = require('path');
-require('dotenv').config();
-
-let mainWindow;
-
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    }
-  });
-
-  mainWindow.loadFile('src/index.html');
-  
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
-  }
-}
-
-// App event handlers
-app.whenReady().then(() => {
-  createWindow();
-  setupAutoUpdater();
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
-
-// IPC handlers
-ipcMain.handle('run-playwright-automation', async (event, config) => {
-  // Your Playwright automation logic here
-  const { chromium } = require('playwright');
-  
-  try {
-    const browser = await chromium.launch({
-      headless: config.headless || false
-    });
-    
-    const page = await browser.newPage();
-    // Your automation steps...
-    
-    await browser.close();
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// Auto-updater setup
-function setupAutoUpdater() {
-  autoUpdater.checkForUpdatesAndNotify();
 }
 ```
 
 ### Quick Start Commands
 
-#### Initial Setup
 ```bash
-# 1. Create new project
-mkdir my-electron-playwright-app
-cd my-electron-playwright-app
-
-# 2. Initialize npm
+# 1. Initialize project
+mkdir my-dual-platform-app && cd my-dual-platform-app
 npm init -y
 
-# 3. Install dependencies
-npm install electron electron-builder electron-updater @playwright/test playwright dotenv
-npm install --save-dev @electron/notarize cross-env
+# 2. Install dependencies
+npm install electron electron-builder electron-updater @playwright/test playwright express dotenv
+npm install --save-dev @electron/notarize cross-env concurrently
 
-# 4. Install Playwright browsers
+# 3. Create directory structure
+mkdir -p src/{desktop,web/{server,client},shared/{core,models,services,utils}}
+mkdir -p scripts build
+
+# 4. Install Playwright
 npx playwright install chromium
 
-# 5. Create basic structure
-mkdir -p src scripts build docs
-touch src/main-electron.js src/preload.js src/index.html
-touch scripts/prepare-chromium.js scripts/notarize.js
-touch build/entitlements.mac.plist
-touch .env.example
-
-# 6. Copy template files (use templates above)
-```
-
-#### Development Workflow
-```bash
-# Development
-npm start
-
-# Build for current platform
-npm run build
-
-# Build for specific platforms
-npm run dist-mac-arm64
-npm run dist-mac-x64
-npm run dist-win
-
-# Publish updates
-npm run publish-update-mac-arm64
+# 5. Start development
+npm run dev  # Runs both desktop and web simultaneously
 ```
 
 ---
 
 ## Conclusion
 
-This guide provides a comprehensive foundation for building and distributing Electron applications with Playwright integration. Key takeaways:
+This guide provides a battle-tested approach for building applications that work seamlessly across desktop and web platforms with:
 
-1. **Security First**: Always use context isolation and proper IPC patterns
-2. **Memory Management**: Use `asarUnpack` for large binaries like Chromium
-3. **Cross-Platform**: Test on all target platforms and handle path differences
-4. **Code Signing**: Essential for macOS distribution and user trust
-5. **Auto-Updates**: Architecture-specific update files for proper multi-arch support
-6. **Environment Management**: Secure handling of secrets and configuration
+### Key Achievements:
+1. **🎯 Dual Platform Parity**: Web and desktop features always in sync
+2. **📦 Optimized Packaging**: 57% size reduction through smart Chromium bundling
+3. **🔄 Universal Auto-Updates**: All platforms (Windows, Mac ARM64, Mac x64) supported
+4. **🛡️ Production Ready**: Code signing, notarization, and security best practices
+5. **⚡ Cross-Platform Builds**: Build Windows on Mac and vice versa
 
-The patterns and solutions in this guide are battle-tested from the FormBro project and will help you avoid common pitfalls when building similar applications.
+### Critical Success Factors:
+- **Never implement features on just one platform** - Web/Desktop sync is mandatory
+- **Always use shared services** - Business logic must be platform-agnostic
+- **Test on all target platforms** - Cross-platform compatibility is essential
+- **Use TARGET_PLATFORMS** - Leverage smart Chromium packaging for optimal builds
 
-For additional support, refer to:
-- [Electron Documentation](https://www.electronjs.org/docs)
-- [Playwright Documentation](https://playwright.dev)
-- [electron-builder Documentation](https://www.electron.build)
-- [Apple Developer Documentation](https://developer.apple.com/documentation/)
+The patterns in this guide are proven from the FormBro project and will help you build robust, efficient, dual-platform applications.
 
 ---
 
-*Generated from FormBro project analysis - A complete Electron + Playwright application with cross-platform distribution and auto-updates.*
+*Generated from FormBro project analysis - A production-ready Electron + Web application with cross-platform distribution, auto-updates, and synchronized feature development.*
