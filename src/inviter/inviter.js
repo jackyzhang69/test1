@@ -110,7 +110,41 @@ class JobbankInviter {
             
             // Process the job post
             await this.goToJobPost(page, jobPostId, itemsPerPage);
-            await this.getAllFullProfileButtons(page, minimumStars);
+            
+            // Execute the actual invitation process (same logic as single job)
+            let fullProfileButton = await this.getAllFullProfileButtons(page, minimumStars);
+            let jobInvitationCount = 0;
+            
+            this.logger(`🔄 Starting invitation loop. Found button: ${fullProfileButton ? 'YES' : 'NO'}`);
+            
+            while (fullProfileButton) {
+                try {
+                    this.logger(`🎯 Attempting to invite candidate #${jobInvitationCount + 1}...`);
+                    
+                    // Click on candidate profile
+                    await fullProfileButton.click();
+                    
+                    // Find and click the "Invite to apply" button
+                    const itaButton = page.locator('input:has-text("Invite to apply")');
+                    await itaButton.scrollIntoViewIfNeeded();
+                    await itaButton.click();
+                    
+                    // Go back to candidate list
+                    this.logger(`📧 Invitation sent! Going back to candidate list...`);
+                    await page.goBack();
+                    this.invited++;
+                    jobInvitationCount++;
+                    
+                    await page.waitForLoadState('networkidle', { timeout: this.timeout });
+                    
+                    // Look for next candidate
+                    fullProfileButton = await this.getAllFullProfileButtons(page, minimumStars);
+                } catch (error) {
+                    this.logger(`❌ Error inviting candidate: ${error.message}`);
+                    this.errors.push(`Error inviting candidate: ${error.message}`);
+                    break;
+                }
+            }
             
             const invitedForThisJob = this.invited - startInvited;
             results.push({ jobPostId, invited: invitedForThisJob });
