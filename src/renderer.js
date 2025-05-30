@@ -172,6 +172,39 @@ function resetInviterDisplay() {
     messageList.innerHTML = '';
   }
   updateInviterProgress(0);
+  resetOverallProgress();
+  resetCurrentJobProgress();
+  hideInvitationStats();
+}
+
+function resetOverallProgress() {
+  const progressBar = DOM_ELEMENTS.overallProgressBar();
+  if (progressBar) {
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0 / 0 Job Posts';
+  }
+}
+
+function resetCurrentJobProgress() {
+  const progressBar = DOM_ELEMENTS.inviterProgressBar();
+  const titleElement = DOM_ELEMENTS.currentJobTitle();
+  
+  if (progressBar) {
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0%';
+  }
+  
+  if (titleElement) {
+    titleElement.textContent = 'Current Job Progress';
+  }
+}
+
+function hideInvitationStats() {
+  const statsElement = DOM_ELEMENTS.invitationStats();
+  if (statsElement) {
+    statsElement.classList.add('hidden');
+    statsElement.innerHTML = '';
+  }
 }
 
 function populateRcicAccountSelect(rcicAccounts) {
@@ -441,12 +474,15 @@ async function handleRefreshJobbanks() {
       return;
     }
 
+    resetInviterDisplay();
+    invitationStats = {}; // Reset stats
+
     const rcicResponse = await window.api.fetchJobbankAccounts(currentUser._id);
     
     if (rcicResponse.success) {
       jobbankAccountsList = rcicResponse.data;
       populateRcicAccountSelect(jobbankAccountsList);
-      addInviterMessage(`刷新成功，找到 ${jobbankAccountsList.length} 个RCIC账户`, 'success');
+      addInviterMessage(`Refreshed,found ${jobbankAccountsList.length} RCIC accounts`, 'success');
     } else {
       addInviterMessage(rcicResponse.error || 'Failed to refresh RCIC accounts', 'error');
     }
